@@ -1,0 +1,20 @@
+name: bk7259_robot
+chip: BK7259
+board: bk7259_robot
+profile: robot
+sdk:
+  repository: https://github.com/bekencorp/bk_avdk_smp.git
+  ref: release/v4.0.1.11
+  sha: VERIFY_LOCALLY
+solution:
+  repository: https://github.com/bekencorp/bk_solution_ai.git
+  ref: release/v4.0.1.11
+  sha: VERIFY_LOCALLY
+components:
+  - bk_core
+  - bk_board
+  - bk_net
+  - bk_media
+  - bk_ui
+  - bk_ota
+  - bk_peripheral

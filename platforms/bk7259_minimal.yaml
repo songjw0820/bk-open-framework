@@ -1,0 +1,13 @@
+name: bk7259_minimal
+chip: BK7259
+board: bk7259_robot
+profile: minimal
+sdk:
+  repository: https://github.com/bekencorp/bk_avdk_smp.git
+  ref: release/v4.0.1.11
+  sha: VERIFY_LOCALLY
+solution: null
+components:
+  - bk_core
+  - bk_board
+  - bk_net
