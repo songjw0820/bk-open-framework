@@ -39,6 +39,7 @@ artifact="$project_dir/build/bk7259/beken_robot/package/all-app.bin"
 printf '%s\n' "AP entry: $project_dir/ap/CMakeLists.txt" "CP entry: $project_dir/cp/CMakeLists.txt" "Project entry: $project_dir/Makefile" "Expected artifact: $artifact"
 
 if [ "$run_build" -eq 0 ]; then
+  printf '%s\n' "PASS: entry-point inspection completed"
   exit 0
 fi
 
