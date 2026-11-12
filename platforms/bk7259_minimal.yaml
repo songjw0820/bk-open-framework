@@ -1,0 +1,18 @@
+name: bk7259_minimal
+chip: BK7259
+board: bk7259_robot
+profile: minimal
+sdk:
+  repository: https://github.com/bekencorp/bk_avdk_smp.git
+  ref: release/v4.0.1.11
+  sha: 24cce68adccebec25a7c3bb22e0d1de00f0da5cb
+solution: null
+# This profile intentionally has no bk_solution_ai dependency.
+verification:
+  sdk_sha: 24cce68adccebec25a7c3bb22e0d1de00f0da5cb
+  ap_cp_build: not_run_toolchain_unavailable
+  all_app_bin: not_run_toolchain_unavailable
+components:
+  - bk_core
+  - bk_board
+  - bk_net
