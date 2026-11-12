@@ -5,14 +5,14 @@ profile: robot
 sdk:
   repository: https://github.com/bekencorp/bk_avdk_smp.git
   ref: release/v4.0.1.11
-  sha: VERIFY_LOCALLY
+  sha: 24cce68adccebec25a7c3bb22e0d1de00f0da5cb
 solution:
   repository: https://github.com/bekencorp/bk_solution_ai.git
   ref: release/v4.0.1.11
-  sha: VERIFY_LOCALLY
+  sha: 009c95182de07ae874e39e3d3c24994431bcec70
 verification:
-  sdk_sha: TODO_VERIFY_UPSTREAM_CHECKOUT
-  solution_sha: TODO_VERIFY_UPSTREAM_CHECKOUT
+  sdk_sha: 24cce68adccebec25a7c3bb22e0d1de00f0da5cb
+  solution_sha: 009c95182de07ae874e39e3d3c24994431bcec70
   ap_cp_build: not_run_toolchain_unavailable
   all_app_bin: not_run_toolchain_unavailable
 components:
