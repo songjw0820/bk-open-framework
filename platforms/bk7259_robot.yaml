@@ -10,6 +10,11 @@ solution:
   repository: https://github.com/bekencorp/bk_solution_ai.git
   ref: release/v4.0.1.11
   sha: VERIFY_LOCALLY
+verification:
+  sdk_sha: TODO_VERIFY_UPSTREAM_CHECKOUT
+  solution_sha: TODO_VERIFY_UPSTREAM_CHECKOUT
+  ap_cp_build: not_run_toolchain_unavailable
+  all_app_bin: not_run_toolchain_unavailable
 components:
   - bk_core
   - bk_board
