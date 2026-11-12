@@ -14,6 +14,18 @@
 | 字体、图片和 LCD 资源 | `projects/beken_robot/ap/beken_generated`、`ap/include` | robot profile 专用 | 逐项核对字体和图片许可 |
 | 第三方二进制库 | 工程构建配置和链接参数 | 只通过插件引用 | 待列出文件名、版本和 NOTICE |
 
+## 已发现的第三方或专有引用
+
+| 引用 | 位置 | 当前处理 |
+|---|---|---|
+| Agora RTC/RTSA/RTM API | `projects/beken_robot/README.md`、`README_CN.md`、`ap/src/demo/camera_preview.c`、`components/bk_app_event/app_event.c` | 记录为 robot profile 可选插件，具体 SDK 文件和版本待核对 |
+| `agora-iot-sdk` 内存说明 | `projects/beken_robot/partitions/bk7259/ram_regions.csv` | 仅作为来源注释，未复制，许可证和版本待核对 |
+| 生成字体资源 | `projects/beken_robot/ap/beken_generated/fonts/*.c` | robot profile 专用，字体来源和再分发权待核对 |
+| 提示音和媒体资源 | `components/bk_app_event/*_array.h`、`projects/beken_robot/ap/include/lcd_image.h` | robot profile 专用，资源来源和再分发权待核对 |
+| NPU/端侧模型代码和资源 | `components/avdk_nn_module/`、`projects/beken_robot/ap/beken_generated/` | robot profile 专用，模型许可证和权重来源待核对 |
+
+当前本地 checkout 没有可确认的 Agora 二进制文件名、版本号或 NOTICE 文件，因此这些字段保留为待核对状态，不把类别名称当成已完成的法律审计。
+
 ## 已核对的审计入口
 
 - `LICENSE`、`docs/`：仓库级许可证和说明。
