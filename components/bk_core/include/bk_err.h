@@ -16,6 +16,8 @@ typedef enum {
     BK_ERR_NOT_FOUND = -7,
     BK_ERR_NO_MEMORY = -8,
     BK_ERR_LIMIT = -9,
+    BK_ERR_REENTRANT = -10,
+    BK_ERR_BUSY = -11,
 } bk_err_t;
 
 #define BK_ERR_OK BK_OK
