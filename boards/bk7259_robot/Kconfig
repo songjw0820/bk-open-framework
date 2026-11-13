@@ -1,0 +1,15 @@
+menuconfig BK7259_ROBOT
+    bool "BK7259 robot board"
+    default y
+    help
+      Enable the verified BK7259 robot board metadata.
+
+if BK7259_ROBOT
+
+config BK7259_ROBOT_CP_UART0
+    bool "Verified CP UART0"
+    default y
+    help
+      CP UART0 uses GPIO10 for RX and GPIO11 for TX.
+
+endif

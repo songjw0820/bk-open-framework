@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "pins.h"
+
 static int g_bk_board_initialized;
 static const bk_board_info_t g_bk_board_info = {
     .name = "bk7259_robot",
@@ -46,10 +48,10 @@ bk_err_t bk_board_get_pin(bk_board_pin_id_t id, bk_gpio_pin_t *pin)
     }
     switch (id) {
     case BK_BOARD_PIN_CP_UART0_RX:
-        *pin = 10;
+        *pin = BK7259_ROBOT_CP_UART0_RX_GPIO;
         return BK_OK;
     case BK_BOARD_PIN_CP_UART0_TX:
-        *pin = 11;
+        *pin = BK7259_ROBOT_CP_UART0_TX_GPIO;
         return BK_OK;
     default:
         return BK_ERR_NOT_FOUND;
