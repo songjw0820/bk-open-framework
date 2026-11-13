@@ -1,0 +1,5 @@
+menuconfig BK_MEDIA
+    bool "Enable BK media component"
+    default n
+    help
+      Enable the chip-independent media adapter boundary.

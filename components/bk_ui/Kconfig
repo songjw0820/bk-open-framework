@@ -1,0 +1,5 @@
+menuconfig BK_UI
+    bool "Enable BK UI component"
+    default n
+    help
+      Enable the chip-independent display and input adapter boundary.
