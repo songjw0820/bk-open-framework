@@ -19,6 +19,7 @@ typedef bk_err_t (*bk_lan_publish_fn)(void *context, const bk_device_record_t *r
 typedef struct {
     void *context;
     bk_lan_publish_fn publish;
+    bk_net_action_fn stop;
 } bk_lan_config_t;
 
 bk_err_t bk_lan_start(const bk_lan_config_t *config);
