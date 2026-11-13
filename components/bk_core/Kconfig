@@ -1,0 +1,5 @@
+menuconfig BK_CORE
+    bool "BK core"
+    default y
+    help
+      Enable the chip-independent lifecycle and event APIs.
