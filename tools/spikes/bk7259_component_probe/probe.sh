@@ -52,8 +52,8 @@ if [ ! -d "$sdk_dir" ]; then
   exit 5
 fi
 make -C "$sdk_dir" bk7259 PROJECT=beken_robot PROJECT_DIR="$project_dir"
-if [ ! -f "$artifact" ]; then
-  echo "ERROR: build completed without expected artifact: $artifact" >&2
+if [ ! -s "$artifact" ]; then
+  echo "ERROR: build completed without a non-empty expected artifact: $artifact" >&2
   exit 6
 fi
 printf '%s\n' "PASS: AP/CP build and all-app.bin artifact verified"

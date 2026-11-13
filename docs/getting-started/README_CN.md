@@ -44,7 +44,7 @@ cmake --build /tmp/bk-example-wifi
 ## 按里程碑选择示例
 
 - M1 从 `examples/01_wifi_provision` 和 `examples/02_lan_device` 开始。它们只依赖公共网络和板卡边界，可在无 SDK 主机上完成入口检查。
-- M2 使用 `examples/03_audio_player`、`04_camera_stream`、`05_peripheral_control`。媒体、驱动和 GPIO 能力需要 SDK 与板级适配，音频和摄像头仍要经过硬件门禁。
+- M2 使用 `examples/03_audio_player`、`04_camera_stream`、`05_peripheral_control`、`07_ui_control`、`08_ota_update`。媒体、驱动、GPIO、UI 和 OTA 能力需要 SDK 与板级适配，音频和摄像头仍要经过硬件门禁。
 - M3 使用 `examples/06_robot_reference` 组合公共组件。Agora 和 AI 云端能力通过产品插件注入，插件不是公共框架依赖。
 
 ## SDK 原生构建边界

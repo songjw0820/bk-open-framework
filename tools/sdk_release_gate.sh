@@ -29,7 +29,8 @@ done
     --sdk-dir "$sdk_dir" \
     --build
 
-artifact="$solution_dir/projects/beken_robot/build/bk7259/beken_robot/package/all-app.bin"
+project_dir="$solution_dir/projects/beken_robot"
+artifact="$project_dir/build/bk7259/beken_robot/package/all-app.bin"
 if [[ ! -s "$artifact" ]]; then
     echo "ERROR: AP/CP build did not produce a non-empty all-app.bin: $artifact" >&2
     exit 5
