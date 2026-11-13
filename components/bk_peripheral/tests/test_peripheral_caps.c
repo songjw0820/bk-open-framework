@@ -24,7 +24,7 @@ static void test_capabilities(void)
 {
     bk_peripheral_info_t info;
     assert(!bk_peripheral_has_capability(BK_PERIPHERAL_CP_UART0));
-    assert(bk_peripheral_query(BK_PERIPHERAL_AUDIO, &info) == BK_ERR_NOT_SUPPORTED);
+    assert(bk_peripheral_query(BK_PERIPHERAL_AUDIO, &info) == BK_ERR_NOT_INITIALIZED);
     assert(bk_peripheral_query((bk_peripheral_id_t)-1, &info) == BK_ERR_NOT_FOUND);
     assert(bk_peripheral_query(BK_PERIPHERAL_AUDIO, NULL) == BK_ERR_INVALID_ARG);
     assert(bk_board_init(&(bk_board_config_t){0}) == BK_OK);

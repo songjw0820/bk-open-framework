@@ -67,6 +67,9 @@ bk_err_t bk_peripheral_query(bk_peripheral_id_t id, bk_peripheral_info_t *info)
     if (map_capability(id, &(bk_board_capability_t){0}) != BK_OK) {
         return BK_ERR_NOT_FOUND;
     }
+    if (bk_board_get_info() == NULL) {
+        return BK_ERR_NOT_INITIALIZED;
+    }
     info->id = id;
     info->available = bk_peripheral_has_capability(id);
     info->open = false;
@@ -88,6 +91,10 @@ bk_err_t bk_peripheral_open(bk_peripheral_id_t id,
     }
     if (!bk_peripheral_has_capability(id)) {
         bk_board_capability_t capability;
+        if (map_capability(id, &capability) == BK_OK &&
+            bk_board_get_info() == NULL) {
+            return BK_ERR_NOT_INITIALIZED;
+        }
         return map_capability(id, &capability) == BK_ERR_NOT_FOUND
             ? BK_ERR_NOT_FOUND : BK_ERR_NOT_SUPPORTED;
     }
