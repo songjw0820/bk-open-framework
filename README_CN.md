@@ -29,4 +29,31 @@ python3 tools/manifest.py platforms/bk7259_minimal.yaml platforms/bk7259_robot.y
 ./tools/bk env --profile bk7259_robot --root /path/to/deps
 ```
 
-`doctor` 会检查 checkout 是否存在、当前分支 ref 和 HEAD SHA 是否与清单一致。机器人 profile 还会检查 `bk_solution_ai`，minimal profile 不会检查 solution。`fetch` 只会更新干净的现有 checkout，发现未提交改动时会直接报错以避免覆盖。`--dry-run` 只打印锁定版本，不执行构建或网络操作。
+`doctor` 会检查 checkout 是否存在、当前分支/Tag ref 和 HEAD SHA 是否与清单一致。机器人 profile 还会检查 `bk_solution_ai`，minimal profile 不会检查 solution。`fetch` 只会更新干净的现有 checkout，发现未提交改动时会直接报错以避免覆盖。`--dry-run` 只打印锁定版本，不执行构建或网络操作。
+
+## 固件编译
+
+### 方式一：Docker 容器编译（推荐，`./dbuild.sh`）
+
+对齐博通官方 `bekencorp/armino-idk`（版本 >= `1.5`）容器构建方式：
+
+```bash
+# 拉取官方构建镜像
+docker pull bekencorp/armino-idk:1.5
+
+# 一键编译 BK7259 AP/CP 双核固件并打包 all-app.bin
+./dbuild.sh make bk7259
+
+# 或通过发布门禁脚本以 Docker 模式执行完整校验
+BK_USE_DOCKER=1 BK_DEPS_ROOT=$PWD/.bk-deps ./tools/sdk_release_gate.sh
+```
+
+### 方式二：宿主机本地工具链编译
+
+宿主机已安装 `arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi` 时，可直接运行：
+
+```bash
+BK_DEPS_ROOT=$PWD/.bk-deps ./tools/sdk_release_gate.sh
+```
+
+编译生成的烧录固件位于 `.bk-deps/bk_solution_ai/projects/beken_robot/build/bk7259/beken_robot/package/all-app.bin`。完整指引见 [`docs/getting-started/README_CN.md`](docs/getting-started/README_CN.md)。
