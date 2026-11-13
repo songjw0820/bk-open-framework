@@ -1,0 +1,16 @@
+name: 03_audio_player
+milestone: M2
+platform: BK7259
+platform_manifest: ../../platforms/bk7259_robot.yaml
+profile: robot
+board: bk7259_robot
+components:
+  - bk_core
+  - bk_board
+  - bk_media
+dependencies:
+  sdk: 需要 Armino SDK 的音频驱动和板级适配
+  optional_plugins:
+    - 无
+host_check: true
+hardware_status: pending

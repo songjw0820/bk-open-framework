@@ -1,0 +1,16 @@
+name: 05_peripheral_control
+milestone: M2
+platform: BK7259
+platform_manifest: ../../platforms/bk7259_robot.yaml
+profile: robot
+board: bk7259_robot
+components:
+  - bk_core
+  - bk_board
+  - bk_peripheral
+dependencies:
+  sdk: 需要 Armino SDK 的 GPIO、UART 和具体外设驱动
+  optional_plugins:
+    - 无
+host_check: true
+hardware_status: pending

@@ -1,0 +1,17 @@
+name: 04_camera_stream
+milestone: M2
+platform: BK7259
+platform_manifest: ../../platforms/bk7259_robot.yaml
+profile: robot
+board: bk7259_robot
+components:
+  - bk_core
+  - bk_board
+  - bk_media
+  - bk_net
+dependencies:
+  sdk: 需要 Armino SDK 的摄像头驱动、编码器和网络发送适配
+  optional_plugins:
+    - 无
+host_check: true
+hardware_status: pending

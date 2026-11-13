@@ -1,0 +1,20 @@
+name: 06_robot_reference
+milestone: M3
+platform: BK7259
+platform_manifest: ../../platforms/bk7259_robot.yaml
+profile: robot
+board: bk7259_robot
+components:
+  - bk_core
+  - bk_board
+  - bk_net
+  - bk_media
+  - bk_ui
+  - bk_ota
+  - bk_peripheral
+dependencies:
+  sdk: 需要锁定的 Armino SDK；完整机器人固件还需要外部 bk_solution_ai 参考工程
+  optional_plugins:
+    - agora_adapter（可选，需由产品集成注入）
+host_check: true
+hardware_status: pending

@@ -1,0 +1,16 @@
+name: 01_wifi_provision
+milestone: M1
+platform: BK7259
+platform_manifest: ../../platforms/bk7259_minimal.yaml
+profile: minimal
+board: bk7259_robot
+components:
+  - bk_core
+  - bk_board
+  - bk_net
+dependencies:
+  sdk: host 可检查，目标固件需要 Armino SDK
+  optional_plugins:
+    - 无
+host_check: true
+hardware_status: pending

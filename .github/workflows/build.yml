@@ -1,0 +1,136 @@
+name: bk-open-framework
+
+on:
+  push:
+    branches: [main, master, 'feature/**']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release_gate:
+        description: 'Run SDK/AP-CP release gate when external checkouts are available'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+jobs:
+  manifest:
+    name: Manifest and example checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install host test runner
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Validate locked platform manifests
+        run: python3 tools/manifest.py platforms/bk7259_minimal.yaml platforms/bk7259_robot.yaml
+      - name: Validate example metadata and host entry points
+        run: python3 tools/check_examples.py
+      - name: Run Python host tests
+        run: |
+          git config --global init.defaultBranch master
+          python3 -m pytest tools/tests -q
+
+  host-components:
+    name: Component host CMake tests
+    runs-on: ubuntu-latest
+    needs: manifest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure, build and test core component
+        run: |
+          cmake -S components/bk_core -B build/host/bk_core -DBK_CORE_BUILD_TESTS=ON
+          cmake --build build/host/bk_core --parallel
+          ctest --test-dir build/host/bk_core --output-on-failure
+      - name: Configure, build and test board component
+        run: |
+          cmake -S components/bk_board -B build/host/bk_board -DBK_BOARD_BUILD_TESTS=ON
+          cmake --build build/host/bk_board --parallel
+          ctest --test-dir build/host/bk_board --output-on-failure
+      - name: Configure, build and test network component
+        run: |
+          cmake -S components/bk_net -B build/host/bk_net -DBK_NET_BUILD_TESTS=ON
+          cmake --build build/host/bk_net --parallel
+          ctest --test-dir build/host/bk_net --output-on-failure
+      - name: Configure, build and test optional media UI OTA components
+        run: |
+          set -euo pipefail
+          for component in bk_media bk_ui bk_ota; do
+            case "$component" in
+              bk_media) options=(-DCONFIG_BK_MEDIA=ON -DBK_MEDIA_BUILD_TESTS=ON) ;;
+              bk_ui) options=(-DCONFIG_BK_UI=ON -DBK_UI_BUILD_TESTS=ON) ;;
+              bk_ota) options=(-DCONFIG_BK_OTA=ON -DBK_OTA_BUILD_TESTS=ON) ;;
+            esac
+            cmake -S "components/$component" -B "build/host/$component" "${options[@]}"
+            cmake --build "build/host/$component" --parallel
+            ctest --test-dir "build/host/$component" --output-on-failure
+          done
+      - name: Configure, build and test peripheral component
+        run: |
+          cmake -S components/bk_peripheral -B build/host/bk_peripheral -DBK_PERIPHERAL_BUILD_TESTS=ON
+          cmake --build build/host/bk_peripheral --parallel
+          ctest --test-dir build/host/bk_peripheral --output-on-failure
+
+  minimal-configuration:
+    name: Minimal profile configuration
+    runs-on: ubuntu-latest
+    needs: manifest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate minimal profile and build minimal example
+        run: |
+          python3 tools/manifest.py platforms/bk7259_minimal.yaml
+          cmake -S examples/01_wifi_provision -B build/examples/01_wifi_provision
+          cmake --build build/examples/01_wifi_provision --parallel
+          cmake -S examples/02_lan_device -B build/examples/02_lan_device
+          cmake --build build/examples/02_lan_device --parallel
+      - name: Verify minimal dependency boundary
+        run: |
+          if rg -n 'bk_solution_ai|agora' examples/01_wifi_provision examples/02_lan_device; then
+            echo 'minimal examples must not mention solution or Agora dependencies' >&2
+            exit 1
+          fi
+
+  robot-host:
+    name: Full robot host checks
+    runs-on: ubuntu-latest
+    needs: [manifest, host-components]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test robot product without optional Agora
+        run: |
+          cmake -S products/bk7259_robot -B build/robot/no-plugin \
+            -DBK7259_ROBOT_BUILD_TESTS=ON -DBK7259_ROBOT_ENABLE_AGORA=OFF
+          cmake --build build/robot/no-plugin --parallel
+          ctest --test-dir build/robot/no-plugin --output-on-failure
+      - name: Build and test robot product with injected optional plugin boundary
+        run: |
+          cmake -S products/bk7259_robot -B build/robot/plugin \
+            -DBK7259_ROBOT_BUILD_TESTS=ON -DBK7259_ROBOT_ENABLE_AGORA=ON
+          cmake --build build/robot/plugin --parallel
+          ctest --test-dir build/robot/plugin --output-on-failure
+      - name: Build all example host entry points
+        run: |
+          set -euo pipefail
+          for example in examples/*; do
+            cmake -S "$example" -B "build/examples/$(basename "$example")"
+            cmake --build "build/examples/$(basename "$example")" --parallel
+          done
+
+  sdk-release-gate:
+    name: Manual SDK AP-CP release gate
+    if: github.event_name == 'workflow_dispatch' && inputs.release_gate == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require externally supplied locked checkouts
+        run: |
+          test -e "${BK_DEPS_ROOT:-}/bk_avdk_smp/.git" || { echo 'BK_DEPS_ROOT/bk_avdk_smp must be the locked SDK checkout'; exit 1; }
+          test -e "${BK_DEPS_ROOT:-}/bk_solution_ai/.git" || { echo 'BK_DEPS_ROOT/bk_solution_ai must be the matching solution checkout'; exit 1; }
+          ./tools/bk doctor --profile bk7259_robot --root "$BK_DEPS_ROOT"
+          echo 'Run the SDK-native AP/CP build, all-app.bin packaging and board smoke test here.'
+        env:
+          BK_DEPS_ROOT: ${{ vars.BK_DEPS_ROOT }}
