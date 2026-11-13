@@ -1,0 +1,5 @@
+menu "BK Network"
+config BK_NET
+    bool "Enable BK network component"
+    default y
+endmenu
