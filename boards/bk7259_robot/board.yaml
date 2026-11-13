@@ -1,0 +1,18 @@
+name: bk7259_robot
+chip: BK7259
+profile: robot
+verified:
+  capabilities:
+    - cp_uart0
+  pins:
+    cp_uart0_rx: 10
+    cp_uart0_tx: 11
+unverified:
+  - audio
+  - camera
+  - display
+  - input
+  - led
+  - vibration
+  - tof
+  - nfc

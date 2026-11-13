@@ -1,0 +1,5 @@
+menuconfig BK_BOARD
+    bool "BK board abstraction"
+    default y
+    help
+      Enable the chip-independent board metadata and pin APIs.

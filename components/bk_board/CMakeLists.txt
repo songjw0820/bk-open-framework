@@ -1,0 +1,25 @@
+cmake_minimum_required(VERSION 3.16)
+
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    project(bk_board C)
+endif()
+
+set(BK_BOARD_SOURCES src/bk_board.c)
+
+if(COMMAND armino_component_register)
+    armino_component_register(SRCS ${BK_BOARD_SOURCES} INCLUDE_DIRS include REQUIRES bk_core)
+else()
+    add_library(bk_board STATIC ${BK_BOARD_SOURCES})
+    target_include_directories(bk_board PUBLIC include)
+    target_include_directories(bk_board PRIVATE ../bk_core/include)
+    target_compile_features(bk_board PUBLIC c_std_11)
+endif()
+
+option(BK_BOARD_BUILD_TESTS "Build bk_board host tests" OFF)
+if(BK_BOARD_BUILD_TESTS)
+    enable_testing()
+    add_executable(bk_board_test tests/test_capabilities.c ${BK_BOARD_SOURCES})
+    target_include_directories(bk_board_test PRIVATE include ../bk_core/include)
+    target_compile_features(bk_board_test PRIVATE c_std_11)
+    add_test(NAME bk_board_test COMMAND bk_board_test)
+endif()
