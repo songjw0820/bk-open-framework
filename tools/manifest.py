@@ -19,12 +19,12 @@ SUPPORTED_PROFILES = {"minimal", "robot"}
 CANONICAL_SDK = {
     "repository": "https://github.com/bekencorp/bk_avdk_smp.git",
     "ref": "release/v4.0.1.11",
-    "sha": "24cce68adccebec25a7c3bb22e0d1de00f0da5cb",
+    "sha": "584b947920c414230f9909375f008e7d6a2c6c6b",
 }
 CANONICAL_SOLUTION = {
     "repository": "https://github.com/bekencorp/bk_solution_ai.git",
     "ref": "release/v4.0.1.11",
-    "sha": "009c95182de07ae874e39e3d3c24994431bcec70",
+    "sha": "a1e865e156e8dc31dfb360219c33a6a6d908ea98",
 }
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 

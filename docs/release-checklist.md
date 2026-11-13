@@ -5,8 +5,8 @@
 ## 版本和 upstream pair
 
 - 框架版本：待发布 `v0.1.0`
-- SDK upstream pair：`bekencorp/bk_avdk_smp`，`release/v4.0.1.11`，`24cce68adccebec25a7c3bb22e0d1de00f0da5cb`
-- solution upstream pair：`bekencorp/bk_solution_ai`，`release/v4.0.1.11`，`009c95182de07ae874e39e3d3c24994431bcec70`
+- SDK upstream pair：`bekencorp/bk_avdk_smp`，`release/v4.0.1.11`，`584b947920c414230f9909375f008e7d6a2c6c6b`
+- solution upstream pair：`bekencorp/bk_solution_ai`，`release/v4.0.1.11`，`a1e865e156e8dc31dfb360219c33a6a6d908ea98`
 - Tag 规则：框架 tag 使用 `v0.1.0`，发布记录必须同时写入上述 upstream ref 和 40 位 SHA。SDK 与 solution 的 ref 不一致时不得发布。
 - 当前 tag 状态：`PENDING`，未执行创建或推送。
 

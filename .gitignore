@@ -1,1 +1,3 @@
 .worktrees/
+.bk-deps/
+__pycache__/

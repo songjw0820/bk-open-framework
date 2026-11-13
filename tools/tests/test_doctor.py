@@ -57,3 +57,23 @@ def test_valid_paired_checkouts_are_reported(tmp_path):
     solution_dep = {"repository": "unused", "ref": "release/v4.0.1.11", "sha": solution_sha}
     assert inspect_checkout(sdk, sdk_dep).ok
     assert inspect_checkout(solution, solution_dep).ok
+
+
+def test_detached_tag_checkout_is_accepted(tmp_path):
+    repo = tmp_path / "bk_avdk_smp"
+    sha = make_repo(repo, "main")
+    git(repo, "tag", "-a", "release/v4.0.1.11", "-m", "release")
+    git(repo, "checkout", "-q", "--detach", "release/v4.0.1.11")
+    dependency = {"repository": "unused", "ref": "release/v4.0.1.11", "sha": sha}
+    result = inspect_checkout(repo, dependency)
+    assert result.ok, result.message
+
+
+def test_detached_head_not_on_locked_tag_is_rejected(tmp_path):
+    repo = tmp_path / "bk_avdk_smp"
+    sha = make_repo(repo, "main")
+    git(repo, "checkout", "-q", "--detach", "HEAD")
+    dependency = {"repository": "unused", "ref": "release/v4.0.1.11", "sha": sha}
+    result = inspect_checkout(repo, dependency)
+    assert not result.ok
+    assert "detached HEAD" in result.message
