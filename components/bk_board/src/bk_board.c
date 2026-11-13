@@ -5,6 +5,16 @@
 
 #include "pins.h"
 
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+#include <driver/gpio.h>
+#include <os/os.h>
+
+_Static_assert(BK7259_ROBOT_CP_UART0_RX_GPIO == (unsigned)GPIO_10,
+               "CP UART0 RX pin must match Armino GPIO_10");
+_Static_assert(BK7259_ROBOT_CP_UART0_TX_GPIO == (unsigned)GPIO_11,
+               "CP UART0 TX pin must match Armino GPIO_11");
+#endif
+
 static int g_bk_board_initialized;
 static const bk_board_info_t g_bk_board_info = {
     .name = "bk7259_robot",
@@ -24,6 +34,14 @@ bk_err_t bk_board_init(const bk_board_config_t *config)
         strcmp(config->board_name, "bk7259_robot") != 0) {
         return BK_ERR_INVALID_ARG;
     }
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    {
+        bk_err_t sdk_err = bk_gpio_driver_init();
+        if (sdk_err != BK_OK) {
+            return sdk_err;
+        }
+    }
+#endif
     g_bk_board_initialized = 1;
     return BK_OK;
 }

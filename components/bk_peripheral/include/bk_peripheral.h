@@ -46,6 +46,7 @@ typedef struct {
 } bk_peripheral_info_t;
 
 bool bk_peripheral_has_capability(bk_peripheral_id_t id);
+const bk_peripheral_config_t *bk_peripheral_default_config(bk_peripheral_id_t id);
 bk_err_t bk_peripheral_query(bk_peripheral_id_t id, bk_peripheral_info_t *info);
 bk_err_t bk_peripheral_open(bk_peripheral_id_t id,
                             const bk_peripheral_config_t *config,

@@ -3,15 +3,81 @@
 #include <string.h>
 #include "bk_board.h"
 
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+#include <driver/uart.h>
+#define BK_PERIPHERAL_UART_TIMEOUT_MS 100U
+#endif
+
 #define BK_PERIPHERAL_MAX_OPEN 4U
 
 struct bk_peripheral_handle {
     bool in_use;
+    bool hw_initialized;
     bk_peripheral_id_t id;
     bk_peripheral_config_t config;
 };
 
 static struct bk_peripheral_handle g_handles[BK_PERIPHERAL_MAX_OPEN];
+
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+static bk_err_t armino_uart0_read(void *context, void *data,
+                                  size_t size, size_t *read_size)
+{
+    int count;
+    (void)context;
+    if (size == 0U) {
+        if (read_size != NULL) {
+            *read_size = 0U;
+        }
+        return BK_OK;
+    }
+    count = bk_uart_read_bytes(UART_ID_0, data, (uint32_t)size,
+                               BK_PERIPHERAL_UART_TIMEOUT_MS);
+    if (count < 0) {
+        return (bk_err_t)count;
+    }
+    if (read_size != NULL) {
+        *read_size = (size_t)count;
+    }
+    return BK_OK;
+}
+
+static bk_err_t armino_uart0_write(void *context, const void *data,
+                                   size_t size, size_t *written_size)
+{
+    bk_err_t err;
+    (void)context;
+    if (size == 0U) {
+        if (written_size != NULL) {
+            *written_size = 0U;
+        }
+        return BK_OK;
+    }
+    err = bk_uart_write_bytes(UART_ID_0, data, (uint32_t)size);
+    if (err == BK_OK && written_size != NULL) {
+        *written_size = size;
+    }
+    return err;
+}
+
+static const bk_peripheral_config_t g_armino_uart0_config = {
+    .context = NULL,
+    .read = armino_uart0_read,
+    .write = armino_uart0_write,
+};
+#endif
+
+const bk_peripheral_config_t *bk_peripheral_default_config(bk_peripheral_id_t id)
+{
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    if (id == BK_PERIPHERAL_CP_UART0) {
+        return &g_armino_uart0_config;
+    }
+#else
+    (void)id;
+#endif
+    return NULL;
+}
 
 static bk_err_t map_capability(bk_peripheral_id_t id,
                                 bk_board_capability_t *capability)
@@ -108,7 +174,31 @@ bk_err_t bk_peripheral_open(bk_peripheral_id_t id,
     }
     for (size_t i = 0; i < BK_PERIPHERAL_MAX_OPEN; ++i) {
         if (!g_handles[i].in_use) {
+            bool hw_init = false;
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+            if (id == BK_PERIPHERAL_CP_UART0 &&
+                config == &g_armino_uart0_config) {
+                const uart_config_t uart_cfg = {
+                    .baud_rate = UART_BAUDRATE_115200,
+                    .data_bits = UART_DATA_8_BITS,
+                    .parity = UART_PARITY_NONE,
+                    .stop_bits = UART_STOP_BITS_1,
+                    .flow_ctrl = UART_FLOWCTRL_DISABLE,
+                    .src_clk = UART_SCLK_XTAL_26M,
+                };
+                bk_err_t sdk_err = bk_uart_driver_init();
+                if (sdk_err != BK_OK) {
+                    return sdk_err;
+                }
+                sdk_err = bk_uart_init(UART_ID_0, &uart_cfg);
+                if (sdk_err != BK_OK) {
+                    return sdk_err;
+                }
+                hw_init = true;
+            }
+#endif
             g_handles[i].in_use = true;
+            g_handles[i].hw_initialized = hw_init;
             g_handles[i].id = id;
             g_handles[i].config = *config;
             *handle = &g_handles[i];
@@ -167,6 +257,11 @@ bk_err_t bk_peripheral_close(bk_peripheral_handle_t *handle)
     if (handle == NULL || !handle->in_use) {
         return BK_ERR_NOT_FOUND;
     }
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    if (handle->hw_initialized && handle->id == BK_PERIPHERAL_CP_UART0) {
+        (void)bk_uart_deinit(UART_ID_0);
+    }
+#endif
     memset(handle, 0, sizeof(*handle));
     return BK_OK;
 }

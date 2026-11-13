@@ -3,11 +3,61 @@
 #include <stddef.h>
 #include <string.h>
 
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+#include <common/bk_include.h>
+#include <components/system.h>
+#if defined(CONFIG_OTA_HTTP)
+#include <modules/ota.h>
+#endif
+#endif
+
 static struct {
     bk_ota_state_t state;
     bk_ota_config_t config;
     bk_ota_adapter_t adapter;
 } s_ota;
+
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+static bk_err_t armino_ota_start(void *context, const char *url,
+                                 bk_ota_security_mode_t security_mode)
+{
+    (void)context;
+    (void)security_mode;
+    if (url == NULL || url[0] == '\0') {
+        return BK_ERR_INVALID_ARG;
+    }
+#if defined(CONFIG_OTA_HTTP)
+    if (bk_ota_start_download(url, OTA_WR_TO_FLASH) != BK_OK) {
+        return BK_ERR_STATE;
+    }
+    return BK_OK;
+#else
+    return BK_ERR_NOT_SUPPORTED;
+#endif
+}
+
+static bk_err_t armino_ota_apply(void *context)
+{
+    (void)context;
+    bk_reboot_ex(RESET_SOURCE_OTA_REBOOT);
+    return BK_OK;
+}
+
+static const bk_ota_adapter_t k_default_ota_adapter = {
+    .start = armino_ota_start,
+    .apply = armino_ota_apply,
+    .context = NULL,
+};
+#endif
+
+const bk_ota_adapter_t *bk_ota_default_adapter(void)
+{
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    return &k_default_ota_adapter;
+#else
+    return NULL;
+#endif
+}
 
 static int supported_security_mode(bk_ota_security_mode_t mode)
 {
@@ -25,7 +75,7 @@ bk_err_t bk_ota_start(const bk_ota_config_t *config)
     if (!supported_security_mode(config->security_mode)) {
         return BK_ERR_NOT_SUPPORTED;
     }
-    adapter = config->adapter;
+    adapter = config->adapter != NULL ? config->adapter : bk_ota_default_adapter();
     if (adapter == NULL) {
         return BK_ERR_NOT_FOUND;
     }

@@ -1,6 +1,41 @@
 #include "bk_provision.h"
 #include "bk_net_internal.h"
 
+#include <stddef.h>
+
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_BK_SMART_CONFIG)
+extern int bk_sconf_init(void);
+extern void bk_sconf_prepare_for_smart_config(void);
+
+static bk_err_t armino_provision_start(void *context)
+{
+    (void)context;
+    bk_sconf_prepare_for_smart_config();
+    return (bk_err_t)bk_sconf_init();
+}
+
+static bk_err_t armino_provision_stop(void *context)
+{
+    (void)context;
+    return BK_OK;
+}
+
+static const bk_provision_config_t g_armino_provision_config = {
+    .context = NULL,
+    .start = armino_provision_start,
+    .stop = armino_provision_stop,
+};
+#endif
+
+const bk_provision_config_t *bk_provision_default_config(void)
+{
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_BK_SMART_CONFIG)
+    return &g_armino_provision_config;
+#else
+    return NULL;
+#endif
+}
+
 static bk_provision_config_t config;
 static int started;
 bk_err_t bk_provision_start(const bk_provision_config_t *new_config) {

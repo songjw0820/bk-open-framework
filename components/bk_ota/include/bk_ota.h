@@ -46,6 +46,7 @@ bk_err_t bk_ota_fail(bk_err_t error);
 bk_err_t bk_ota_retry(void);
 bk_err_t bk_ota_reset(void);
 bk_ota_state_t bk_ota_get_state(void);
+const bk_ota_adapter_t *bk_ota_default_adapter(void);
 
 #ifdef __cplusplus
 }

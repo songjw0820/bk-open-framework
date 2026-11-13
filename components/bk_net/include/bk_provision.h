@@ -13,6 +13,7 @@ typedef struct {
     bk_net_action_fn stop;
 } bk_provision_config_t;
 
+const bk_provision_config_t *bk_provision_default_config(void);
 bk_err_t bk_provision_start(const bk_provision_config_t *config);
 bk_err_t bk_provision_stop(void);
 

@@ -49,6 +49,7 @@ bk_err_t bk_ui_deinit(void);
 bk_ui_state_t bk_ui_get_state(void);
 bk_err_t bk_ui_render(const void *frame, size_t size);
 bk_err_t bk_ui_dispatch_input(const bk_ui_input_event_t *event);
+const bk_ui_adapter_t *bk_ui_default_adapter(void);
 
 #ifdef __cplusplus
 }

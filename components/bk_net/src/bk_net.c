@@ -1,11 +1,96 @@
 #include "bk_net.h"
 #include "bk_net_internal.h"
 
+#include <stddef.h>
+
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+#include <components/event.h>
+#include <components/netif.h>
+#include <modules/wifi.h>
+#endif
+
 static bk_net_state_t state = BK_NET_STATE_INITIAL;
 static bk_net_config_t config;
 static unsigned retries;
 static int configured;
 static int in_callback;
+
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+static int s_armino_events_registered;
+
+static bk_err_t armino_netif_event_cb(void *arg, event_module_t event_module,
+                                      int event_id, void *event_data)
+{
+    (void)arg;
+    (void)event_module;
+    (void)event_data;
+    if (event_id == EVENT_NETIF_GOT_IP4) {
+        (void)bk_net_notify_connected();
+    }
+    return BK_OK;
+}
+
+static bk_err_t armino_wifi_event_cb(void *arg, event_module_t event_module,
+                                     int event_id, void *event_data)
+{
+    (void)arg;
+    (void)event_module;
+    (void)event_data;
+    if (event_id == EVENT_WIFI_STA_DISCONNECTED) {
+        (void)bk_net_notify_disconnected();
+    }
+    return BK_OK;
+}
+
+static bk_err_t armino_net_start(void *context)
+{
+    bk_err_t err;
+    (void)context;
+    if (!s_armino_events_registered) {
+        err = bk_event_register_cb(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
+                                   armino_netif_event_cb, NULL);
+        if (err != BK_OK && err != BK_ERR_EVENT_CB_EXIST) {
+            return err;
+        }
+        err = bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
+                                   armino_wifi_event_cb, NULL);
+        if (err != BK_OK && err != BK_ERR_EVENT_CB_EXIST) {
+            return err;
+        }
+        s_armino_events_registered = 1;
+    }
+    return bk_wifi_sta_start();
+}
+
+static bk_err_t armino_net_connect(void *context)
+{
+    (void)context;
+    return bk_wifi_sta_connect();
+}
+
+static bk_err_t armino_net_disconnect(void *context)
+{
+    (void)context;
+    return bk_wifi_sta_disconnect();
+}
+
+static const bk_net_config_t g_armino_net_config = {
+    .context = NULL,
+    .start = armino_net_start,
+    .connect = armino_net_connect,
+    .disconnect = armino_net_disconnect,
+    .max_retries = 3U,
+};
+#endif
+
+const bk_net_config_t *bk_net_default_config(void)
+{
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    return &g_armino_net_config;
+#else
+    return NULL;
+#endif
+}
 
 bk_err_t bk_net_callback_enter(void) { if (in_callback) return BK_ERR_REENTRANT; in_callback = 1; return BK_OK; }
 void bk_net_callback_leave(void) { in_callback = 0; }

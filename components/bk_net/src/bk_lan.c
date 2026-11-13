@@ -1,6 +1,52 @@
 #include "bk_lan.h"
 #include "bk_net_internal.h"
 
+#include <stddef.h>
+
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_BK_ROBOT_LAN_NET)
+extern bk_err_t robot_lan_net_init(void);
+extern bk_err_t robot_lan_net_start_discovery(void);
+extern bk_err_t robot_lan_net_stop_all(void);
+
+static int s_lan_hw_inited;
+
+static bk_err_t armino_lan_publish(void *context, const bk_device_record_t *record)
+{
+    bk_err_t err;
+    (void)context;
+    (void)record;
+    if (!s_lan_hw_inited) {
+        err = robot_lan_net_init();
+        if (err != BK_OK) {
+            return err;
+        }
+        s_lan_hw_inited = 1;
+    }
+    return robot_lan_net_start_discovery();
+}
+
+static bk_err_t armino_lan_stop(void *context)
+{
+    (void)context;
+    return robot_lan_net_stop_all();
+}
+
+static const bk_lan_config_t g_armino_lan_config = {
+    .context = NULL,
+    .publish = armino_lan_publish,
+    .stop = armino_lan_stop,
+};
+#endif
+
+const bk_lan_config_t *bk_lan_default_config(void)
+{
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_BK_ROBOT_LAN_NET)
+    return &g_armino_lan_config;
+#else
+    return NULL;
+#endif
+}
+
 static bk_lan_config_t config;
 static int started;
 bk_err_t bk_lan_start(const bk_lan_config_t *new_config) {

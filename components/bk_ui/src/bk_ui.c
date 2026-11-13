@@ -2,10 +2,79 @@
 
 #include <string.h>
 
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_LVGL)
+#include <common/bk_include.h>
+extern void lv_vendor_start(void);
+extern void lv_vendor_stop(void);
+extern void lv_vendor_disp_lock(void);
+extern void lv_vendor_disp_unlock(void);
+#endif
+
 static struct {
     bk_ui_state_t state;
     bk_ui_adapter_t adapter;
 } s_ui;
+
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_LVGL)
+static bk_err_t armino_ui_noop(void *context)
+{
+    (void)context;
+    return BK_OK;
+}
+
+static bk_err_t armino_ui_start(void *context)
+{
+    (void)context;
+    lv_vendor_start();
+    return BK_OK;
+}
+
+static bk_err_t armino_ui_stop(void *context)
+{
+    (void)context;
+    lv_vendor_stop();
+    return BK_OK;
+}
+
+static bk_err_t armino_ui_render(void *context, const void *frame, size_t size)
+{
+    (void)context;
+    if (frame == NULL || size == 0U) {
+        return BK_ERR_INVALID_ARG;
+    }
+    lv_vendor_disp_lock();
+    lv_vendor_disp_unlock();
+    return BK_OK;
+}
+
+static bk_err_t armino_ui_input(void *context, const bk_ui_input_event_t *event)
+{
+    (void)context;
+    if (event == NULL) {
+        return BK_ERR_INVALID_ARG;
+    }
+    return BK_OK;
+}
+
+static const bk_ui_adapter_t k_default_ui_adapter = {
+    .context = NULL,
+    .init = armino_ui_noop,
+    .deinit = armino_ui_noop,
+    .start = armino_ui_start,
+    .stop = armino_ui_stop,
+    .render = armino_ui_render,
+    .dispatch_input = armino_ui_input,
+};
+#endif
+
+const bk_ui_adapter_t *bk_ui_default_adapter(void)
+{
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_LVGL)
+    return &k_default_ui_adapter;
+#else
+    return NULL;
+#endif
+}
 
 static int has_adapter(const bk_ui_adapter_t *adapter)
 {
@@ -17,9 +86,12 @@ static int has_adapter(const bk_ui_adapter_t *adapter)
 bk_err_t bk_ui_init(const bk_ui_config_t *config)
 {
     bk_err_t result;
-    if (config == NULL || !has_adapter(config->adapter)) return BK_ERR_NOT_FOUND;
+    const bk_ui_adapter_t *adapter;
+    if (config == NULL) return BK_ERR_NOT_FOUND;
+    adapter = config->adapter != NULL ? config->adapter : bk_ui_default_adapter();
+    if (!has_adapter(adapter)) return BK_ERR_NOT_FOUND;
     if (s_ui.state != BK_UI_STATE_INITIAL) return BK_ERR_ALREADY_INITIALIZED;
-    s_ui.adapter = *config->adapter;
+    s_ui.adapter = *adapter;
     if (s_ui.adapter.init != NULL) {
         result = s_ui.adapter.init(s_ui.adapter.context);
         if (result != BK_OK) {

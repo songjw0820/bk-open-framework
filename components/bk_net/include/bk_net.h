@@ -30,6 +30,7 @@ typedef struct {
     unsigned max_retries;
 } bk_net_config_t;
 
+const bk_net_config_t *bk_net_default_config(void);
 bk_err_t bk_net_start(const bk_net_config_t *config);
 bk_net_state_t bk_net_get_state(void);
 bk_err_t bk_net_disconnect(void);

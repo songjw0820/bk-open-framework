@@ -46,6 +46,7 @@ bk_err_t bk_media_deinit(void);
 bk_media_state_t bk_media_get_state(void);
 bk_err_t bk_media_submit_audio(const void *data, size_t size);
 bk_err_t bk_media_submit_video(const void *data, size_t size);
+const bk_media_adapter_t *bk_media_default_adapter(void);
 
 #ifdef __cplusplus
 }
