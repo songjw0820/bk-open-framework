@@ -64,11 +64,16 @@ int main(void)
     assert(bk_ui_init(&config) == BK_OK);
     assert(bk_ui_start() == BK_ERR_NOT_SUPPORTED);
     assert(bk_ui_deinit() == BK_OK);
+
     adapter = (bk_ui_adapter_t){ .start = callback };
+    config.adapter = &adapter;
     assert(bk_ui_init(&config) == BK_OK);
     assert(bk_ui_start() == BK_OK);
     assert(bk_ui_stop() == BK_ERR_NOT_SUPPORTED);
     assert(bk_ui_get_state() == BK_UI_STATE_STARTED);
+    assert(bk_ui_deinit() == BK_ERR_BUSY);
+
+    adapter = (bk_ui_adapter_t){ .init = callback };
     assert(bk_ui_deinit() == BK_ERR_BUSY);
     puts("test_ui: PASS");
     return 0;

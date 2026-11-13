@@ -57,13 +57,17 @@ int main(void)
     assert(bk_media_init(&config) == BK_OK);
     assert(bk_media_start() == BK_ERR_NOT_SUPPORTED);
     assert(bk_media_deinit() == BK_OK);
+
     adapter = (bk_media_adapter_t){ .start = callback };
+    config.adapter = &adapter;
     assert(bk_media_init(&config) == BK_OK);
     assert(bk_media_start() == BK_OK);
     assert(bk_media_stop() == BK_ERR_NOT_SUPPORTED);
     assert(bk_media_get_state() == BK_MEDIA_STATE_STARTED);
     assert(bk_media_deinit() == BK_ERR_BUSY);
-    assert(bk_media_stop() == BK_ERR_NOT_SUPPORTED);
+
+    adapter = (bk_media_adapter_t){ .init = callback };
+    assert(bk_media_deinit() == BK_ERR_BUSY);
     puts("test_media: PASS");
     return 0;
 }
