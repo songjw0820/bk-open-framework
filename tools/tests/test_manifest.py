@@ -30,7 +30,7 @@ def test_missing_sdk_sha_is_rejected():
 def test_sdk_and_solution_refs_must_match():
     manifest = copy.deepcopy(read_profile("bk7259_robot"))
     manifest["solution"]["ref"] = "main"
-    with pytest.raises(ValueError, match="same release ref"):
+    with pytest.raises(ValueError, match="canonical bk_solution_ai"):
         validate_manifest(manifest)
 
 
@@ -66,6 +66,20 @@ def test_robot_profile_requires_canonical_solution():
 def test_robot_solution_repository_and_sha_must_match_canonical_release():
     manifest = copy.deepcopy(read_profile("bk7259_robot"))
     manifest["solution"]["sha"] = "0" * 40
+    with pytest.raises(ValueError, match="canonical bk_solution_ai"):
+        validate_manifest(manifest)
+
+
+def test_robot_solution_repository_must_match_canonical_release():
+    manifest = copy.deepcopy(read_profile("bk7259_robot"))
+    manifest["solution"]["repository"] = "https://example.invalid/solution.git"
+    with pytest.raises(ValueError, match="canonical bk_solution_ai"):
+        validate_manifest(manifest)
+
+
+def test_robot_solution_ref_must_match_canonical_release():
+    manifest = copy.deepcopy(read_profile("bk7259_robot"))
+    manifest["solution"]["ref"] = "release/v4.0.1.10"
     with pytest.raises(ValueError, match="canonical bk_solution_ai"):
         validate_manifest(manifest)
 

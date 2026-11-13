@@ -155,9 +155,9 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         raise ValueError("robot profile requires solution")
     else:
         _validate_dependency(solution, "solution")
+        _validate_canonical(solution, CANONICAL_SOLUTION, "canonical bk_solution_ai")
         if solution["ref"] != sdk["ref"]:
             raise ValueError("sdk.ref and solution.ref must use the same release ref")
-        _validate_canonical(solution, CANONICAL_SOLUTION, "canonical bk_solution_ai")
 
 
 def main(argv: list[str] | None = None) -> int:
