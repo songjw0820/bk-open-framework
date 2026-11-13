@@ -64,9 +64,13 @@ def fetch_dependency(root: Path, kind: str, dependency: dict[str, Any], dry_run:
         code, _, err = _git(path, "fetch", "origin", dependency["ref"])
         if code != 0:
             raise RuntimeError(f"获取 {kind} ref 失败: {err}")
-        code, _, err = _git(path, "checkout", dependency["ref"])
+        remote_ref = f"origin/{dependency['ref']}"
+        # The checkout is clean at this point, so explicitly move the local
+        # branch to the freshly fetched remote tip. This updates stale local
+        # commits while never overwriting uncommitted work.
+        code, _, err = _git(path, "checkout", "-B", dependency["ref"], remote_ref)
         if code != 0:
-            raise RuntimeError(f"切换 {kind} ref 失败: {err}")
+            raise RuntimeError(f"切换 {kind} ref 到远程最新提交失败: {err}")
     else:
         proc = subprocess.run(
             ["git", "clone", "--branch", dependency["ref"], dependency["repository"], str(path)],

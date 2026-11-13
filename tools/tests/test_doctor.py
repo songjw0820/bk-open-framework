@@ -38,6 +38,16 @@ def test_wrong_ref_and_sha_are_reported(tmp_path):
     assert actual_sha not in dependency["sha"]
 
 
+def test_correct_ref_with_wrong_sha_reports_sha_mismatch(tmp_path):
+    repo = tmp_path / "sdk"
+    actual_sha = make_repo(repo, "release/v4.0.1.11")
+    dependency = {"repository": "unused", "ref": "release/v4.0.1.11", "sha": "0" * 40}
+    result = inspect_checkout(repo, dependency)
+    assert not result.ok
+    assert "SHA 不匹配" in result.message
+    assert actual_sha in result.message
+
+
 def test_valid_paired_checkouts_are_reported(tmp_path):
     sdk = tmp_path / "bk_avdk_smp"
     solution = tmp_path / "bk_solution_ai"
