@@ -28,6 +28,15 @@ bk_err_t bk_board_init(const bk_board_config_t *config)
     return BK_OK;
 }
 
+bk_err_t bk_board_deinit(void)
+{
+    if (!g_bk_board_initialized) {
+        return BK_ERR_NOT_INITIALIZED;
+    }
+    g_bk_board_initialized = 0;
+    return BK_OK;
+}
+
 bool bk_board_has_capability(bk_board_capability_t capability)
 {
     return g_bk_board_initialized && capability == BK_BOARD_CAPABILITY_CP_UART0;

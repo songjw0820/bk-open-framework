@@ -101,6 +101,7 @@ bk_err_t bk7259_robot_start(const bk_net_config_t *network,
         (void)bk_core_deinit();
         return err;
     }
+    g_started = 1;
 
     g_runtime.user_network = *network;
     g_runtime.agora = agora;
@@ -108,7 +109,7 @@ bk_err_t bk7259_robot_start(const bk_net_config_t *network,
     if (agora != NULL) {
         err = agora->init(agora->context);
         if (err != BK_OK) {
-            (void)bk_core_deinit();
+            (void)bk7259_robot_stop();
             return err;
         }
         g_agora_initialized = 1;
@@ -138,27 +139,38 @@ bk_err_t bk7259_robot_start(const bk_net_config_t *network,
 
 bk_err_t bk7259_robot_stop(void)
 {
-    bk_err_t err = BK_OK;
-    if (g_started || bk_net_get_state() != BK_NET_STATE_INITIAL) {
-        if (bk_net_get_state() != BK_NET_STATE_STOPPED &&
-            bk_net_get_state() != BK_NET_STATE_INITIAL) {
-            err = bk_net_stop();
+    bk_err_t err;
+    bk_err_t deinit_err;
+
+    if (!g_started) {
+        return BK_ERR_NOT_STARTED;
+    }
+    if (bk_net_get_state() != BK_NET_STATE_INITIAL &&
+        bk_net_get_state() != BK_NET_STATE_STOPPED) {
+        err = bk_net_stop();
+        if (err != BK_OK) {
+            return err;
         }
     }
 #if BK7259_ROBOT_AGORA_ENABLED
     if (g_agora_initialized && g_runtime.agora != NULL &&
         g_runtime.agora->deinit != NULL) {
-        bk_err_t deinit_err = g_runtime.agora->deinit(g_runtime.agora->context);
-        if (err == BK_OK) {
-            err = deinit_err;
+        err = g_runtime.agora->deinit(g_runtime.agora->context);
+        if (err != BK_OK) {
+            return err;
         }
     }
 #endif
+    deinit_err = bk_board_deinit();
+    if (deinit_err != BK_OK) {
+        return deinit_err;
+    }
+    deinit_err = bk_core_deinit();
+    if (deinit_err != BK_OK) {
+        return deinit_err;
+    }
     g_agora_initialized = 0;
     g_runtime.agora = NULL;
     g_started = 0;
-    if (bk_core_deinit() != BK_OK && err == BK_OK) {
-        err = BK_ERR_NOT_INITIALIZED;
-    }
-    return err;
+    return BK_OK;
 }

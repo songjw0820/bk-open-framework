@@ -5,6 +5,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif()
 
 set(BK7259_ROBOT_SOURCES main.c)
+set(BK7259_ROBOT_STANDALONE OFF)
 
 if(COMMAND armino_component_register)
     armino_component_register(
@@ -12,6 +13,7 @@ if(COMMAND armino_component_register)
         INCLUDE_DIRS . plugins
         REQUIRES bk_core bk_board bk_net)
 else()
+    set(BK7259_ROBOT_STANDALONE ON)
     add_library(bk7259_robot STATIC ${BK7259_ROBOT_SOURCES}
         ../../components/bk_core/src/bk_core.c
         ../../components/bk_core/src/bk_event.c
@@ -29,7 +31,7 @@ else()
 endif()
 
 option(BK7259_ROBOT_ENABLE_AGORA "Enable the explicitly injected Agora adapter" OFF)
-if(BK7259_ROBOT_ENABLE_AGORA)
+if(BK7259_ROBOT_STANDALONE AND BK7259_ROBOT_ENABLE_AGORA)
     target_compile_definitions(bk7259_robot PRIVATE CONFIG_BK7259_ROBOT_AGORA=1)
 endif()
 

@@ -40,6 +40,10 @@ static void test_init_and_verified_capabilities(void)
     assert(bk_board_get_pin(BK_BOARD_PIN_COUNT, &pin) == BK_ERR_NOT_FOUND);
     assert(bk_board_get_pin((bk_board_pin_id_t)-1, &pin) == BK_ERR_NOT_FOUND);
     assert(bk_board_get_pin(BK_BOARD_PIN_CP_UART0_RX, NULL) == BK_ERR_INVALID_ARG);
+    assert(bk_board_deinit() == BK_OK);
+    assert(bk_board_get_info() == NULL);
+    assert(bk_board_deinit() == BK_ERR_NOT_INITIALIZED);
+    assert(bk_board_init(&config) == BK_OK);
 }
 
 int main(void)

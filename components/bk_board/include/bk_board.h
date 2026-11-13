@@ -47,6 +47,7 @@ typedef struct {
 } bk_board_info_t;
 
 bk_err_t bk_board_init(const bk_board_config_t *config);
+bk_err_t bk_board_deinit(void);
 bool bk_board_has_capability(bk_board_capability_t capability);
 const bk_board_info_t *bk_board_get_info(void);
 bk_err_t bk_board_get_pin(bk_board_pin_id_t id, bk_gpio_pin_t *pin);
