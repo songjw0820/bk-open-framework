@@ -47,8 +47,33 @@ cmake --build /tmp/bk-example-wifi
 - M2 使用 `examples/03_audio_player`、`04_camera_stream`、`05_peripheral_control`、`07_ui_control`、`08_ota_update`。媒体、驱动、GPIO、UI 和 OTA 能力需要 SDK 与板级适配，音频和摄像头仍要经过硬件门禁。
 - M3 使用 `examples/06_robot_reference` 组合公共组件。Agora 和 AI 云端能力通过产品插件注入，插件不是公共框架依赖。
 
-## SDK 原生构建边界
+## SDK 原生构建与 Docker 一键编译（`dbuild.sh`）
 
-框架保留 Armino 原生 Make/Kconfig。锁定 checkout 后，按照对应 SDK 和产品工程的 AP/CP 构建说明生成 `all-app.bin`。本仓库的普通 CI 只运行 host C/CMake 检查，不把缺少 SDK 的环境伪装成固件构建通过。
+框架对齐 Beken 官方 SDK 的 `dbuild.sh` 容器化构建方式（基于官方镜像 `bekencorp/armino-idk`，最低版本 `1.5`），无需在宿主机手动安装交叉编译器与 Python 依赖库即可编译 `all-app.bin`：
+
+1. **拉取或加载官方构建镜像**：
+   ```bash
+   docker pull bekencorp/armino-idk:1.5
+   # 或从博通下载站加载离线镜像：
+   # docker load -i bekencorp-armino-idk-v1.5.tar
+   ```
+
+2. **拉取锁定版本的 SDK 与 Solution（若尚未拉取）**：
+   ```bash
+   ./tools/bk fetch --profile bk7259_robot --root .bk-deps
+   ./tools/bk doctor --profile bk7259_robot --root .bk-deps
+   ```
+
+3. **使用 `dbuild.sh` 编译固件**：
+   ```bash
+   ./dbuild.sh make bk7259
+   ```
+   `dbuild.sh` 会自动将 `.bk-deps/bk_avdk_smp` 挂载为 `/armino`、`.bk-deps/bk_solution_ai` 挂载为 `/solution`、当前框架仓库挂载为 `/bk-open-framework`，将 `bk_open_framework` 组件注入 AP/CP 双核构建，并在构建结束后自动清理临时挂载目录。
+
+   也可以通过发布门禁脚本开启 Docker 模式进行完整校验：
+   ```bash
+   BK_USE_DOCKER=1 BK_DEPS_ROOT=$PWD/.bk-deps ./tools/sdk_release_gate.sh
+   ```
+   生成的烧录固件位于 `.bk-deps/bk_solution_ai/projects/beken_robot/build/bk7259/beken_robot/package/all-app.bin`。
 
 硬件验收项目、PASS 证据格式以及当前待执行项见 [`docs/release-checklist.md`](../release-checklist.md)。
