@@ -1,0 +1,5 @@
+menuconfig BK_PERIPHERAL
+    bool "Enable BK peripheral component"
+    default y
+    help
+      Enable the chip-independent peripheral capability and lifecycle APIs.
