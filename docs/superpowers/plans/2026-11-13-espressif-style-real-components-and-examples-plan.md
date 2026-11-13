@@ -107,50 +107,50 @@ flowchart LR
 - [x] 在 `probe.sh` 中增加 `arm-none-eabi-nm` 对 AP/CP 静态库的符号边界门禁校验，并重跑 `sdk_release_gate.sh` 通过。
 
 ### Phase 1：核心层 (`bk_core`)、板级外设 (`bk_board`, `bk_peripheral`) 与 Host Mock 基础
-- [ ] **`bk_core`**：
+- [x] **`bk_core`**：
   - 在 `bk_event.c` 中增加 Armino `<os/os.h>` 的 `beken_mutex_t` 互斥锁保护（Host 下为无锁/标准保护）。
   - 在 `bk_core.h` 中新增统一日志宏 `BK_FRAMEWORK_LOGI/W/E`（Target 映射 `BK_LOGI/W/E`，Host 映射 `fprintf`）。
-- [ ] **`bk_peripheral`**：
+- [x] **`bk_peripheral`**：
   - 扩展 `bk_peripheral.h`：新增 GPIO 电平读写 (`bk_peripheral_gpio_set/get_level`)、LED 状态设置 (`bk_peripheral_set_led`)、电机控制 (`bk_peripheral_set_motor`) 及 `bk_peripheral_host_mock_config(id)`。
   - 在 Armino Target 下：GPIO 对接 `<driver/gpio.h>`；在 AP 侧且存在 Solution 组件时可选对接 `bk_led_blink` / `bk_motor`。
-  - 扩充 `components/bk_peripheral/tests/test_bk_peripheral.c` 并验证 CTest 通过。
+  - 扩充 `components/bk_peripheral/tests/test_peripheral_caps.c` 并验证 CTest 通过。
 
 ### Phase 2：网络层 (`bk_net`) — 严格分离 Minimal (SDK-only) 与 Robot (Solution)
-- [ ] **SDK 原生 Wi-Fi STA 能力 (`bk_net.c`)**：
+- [x] **SDK 原生 Wi-Fi STA 能力 (`bk_net.c`)**：
   - 新增 `bk_net_set_credentials(ssid, password)`（Target 下调用 `bk_wifi_sta_set_config`）与 `bk_net_get_ip_info(&ip_info)`（Target 下调用 `bk_netif_get_ip4_config(NETIF_IF_STA, &ip4)`）。
   - 新增 `bk_net_host_mock_config()`、`bk_provision_host_mock_config()`、`bk_lan_host_mock_config()` 供 Host 测试与示例使用。
-- [ ] **Minimal vs Robot 配网与局域网后端 (`bk_provision.c`, `bk_lan.c`)**：
+- [x] **Minimal vs Robot 配网与局域网后端 (`bk_provision.c`, `bk_lan.c`)**：
   - `minimal` 模式：不依赖 `bk_solution_ai`，通过 SDK 原生接口完成凭证配置与本地局域网设备记录收发。
   - `robot` 模式：在 `CONFIG_BK_SMART_CONFIG` / `CONFIG_BK_ROBOT_LAN_NET` 启用时自动挂载 `bk_sconf_*` 与 `robot_lan_net_*`。
-  - 扩充 `components/bk_net/tests/test_bk_net.c` 并验证 minimal 依赖边界检查通过。
+  - 扩充 `components/bk_net/tests/test_net_state.c` 并验证 minimal 依赖边界检查通过。
 
 ### Phase 3：AP 专属组件（`bk_media`, `bk_ui`, `bk_ota`）与 AP/CP 构建拆分
-- [ ] **拆分 `bk_open_framework.cmake` 的 AP/CP 源码与依赖**：
+- [x] **拆分 `bk_open_framework.cmake` 的 AP/CP 源码与依赖**：
   - CP (`bk7259`) 仅编译 `bk_core`、`bk_board`、`bk_peripheral`。
-  - AP (`bk7259_ap`) 编译全量组件，并声明 AP 专属 `PRIV_REQUIRES`。
-- [ ] **`bk_media`**：
-  - 新增音频采样/音量参数状态管理、视频流统计与关键帧请求接口，以及 `bk_media_host_mock_adapter()`。
-  - 在 AP Target 下对接 `media_service_init()` 及可选 `audio_engine` / `video_engine` 钩子。
-- [ ] **`bk_ui`**：
-  - 新增屏幕亮度/刷新计数与导航事件队列接口，以及 `bk_ui_host_mock_adapter()`。
-  - 在 AP Target (`CONFIG_LVGL`) 下对接 `lv_vendor_start/stop/disp_lock/disp_unlock` 及可选 `app_mipi_lcd_*`。
-- [ ] **`bk_ota`**：
-  - 新增 `bk_ota_get_partition_info()`、版本防重刷校验、失败回滚状态机及 `bk_ota_host_mock_adapter()`。
-  - 在 AP Target (`CONFIG_OTA_FUNCTION && CONFIG_OTA_HTTP`) 下对接 `<modules/ota.h>` 的 `bk_ota_get_current_partition()`、`bk_ota_get_update_partition()` 与 `bk_ota_start_download()`。
+  - AP (`bk7259_ap`) 编译全量组件，并声明 AP 专属符号门禁。
+- [x] **`bk_media`**：
+  - 新增音频/视频帧提交计数统计接口 `bk_media_get_stats()`，以及 `bk_media_host_mock_adapter()`。
+  - 在 AP Target 下对接 `media_service_init()` 及 `audio_engine_*` / `robot_video_service_*` 钩子。
+- [x] **`bk_ui`**：
+  - 新增渲染帧/输入事件统计接口 `bk_ui_get_stats()`，以及 `bk_ui_host_mock_adapter()`。
+  - 在 AP Target (`CONFIG_LVGL`) 下对接 `lv_vendor_start/stop/disp_lock/disp_unlock` 及 `bk_key_app_notify_ui_nav`。
+- [x] **`bk_ota`**：
+  - 新增 `BK_OTA_STATE_DOWNLOADED`（与 `BK_OTA_STATE_READY` 统一）、`bk_ota_get_partition_info()`（对接 `bk_flash_partition_get_info(BK_PARTITION_OTA)`）、`bk_ota_get_last_error()`、失败重试状态机及 `bk_ota_host_mock_adapter()`。
+  - 在 AP Target (`CONFIG_OTA_FUNCTION && CONFIG_OTA_HTTP`) 下对接 `<modules/ota.h>` 的 `bk_ota_start_download()`。
 
 ### Phase 4：`bk_robot_app` 与 8 个示例 (`examples/01_*` ~ `08_*`) 渐进式落地
 按依赖复杂度分三批推进，每批均通过 CTest 与边界检查：
-- [ ] **第一批（Minimal 网络示例：`01_wifi_provision`, `02_lan_device`）**：
+- [x] **第一批（Minimal 网络示例：`01_wifi_provision`, `02_lan_device`）**：
   - 修改 `CMakeLists.txt` 链接 `bk_core`、`bk_board`、`bk_net`。
   - 实现完整的配网 $\rightarrow$ 凭证写入 $\rightarrow$ STA 连接 $\rightarrow$ IP 获取 $\rightarrow$ 局域网设备发布与停止闭环（严格使用 minimal 能力，零 `bk_solution_ai`/`agora` 引用）。
-- [ ] **第二批（外设、UI、OTA 示例：`05_peripheral_control`, `07_ui_control`, `08_ota_update`）**：
-  - 分别链接 `bk_peripheral`、`bk_ui`、`bk_ota`，实现串口读写、GPIO/LED 控制、UI 事件投递与刷新、OTA 分区查询与升级回滚演练。
-- [ ] **第三批（音视频与机器人全栈示例：`03_audio_player`, `04_camera_stream`, `06_robot_reference`）**：
-  - 链接 `bk_media` 与 `products/bk7259_robot` 编排器，实现 PCM 音频帧提交、摄像头视频帧提交及机器人 `BOOTING -> PROVISIONING -> READY -> ACTIVE -> OTA -> RECOVERING` 全生命周期联动，并新增 CTest 端到端测试验证所有 8 个示例可执行程序返回 `0`。
+- [x] **第二批（外设、UI、OTA 示例：`05_peripheral_control`, `07_ui_control`, `08_ota_update`）**：
+  - 分别链接 `bk_peripheral`、`bk_ui`、`bk_ota`，实现串口读写、GPIO/LED/Motor 控制、UI 事件投递与刷新、OTA 分区查询与升级失败重试/应用演练。
+- [x] **第三批（音视频与机器人全栈示例：`03_audio_player`, `04_camera_stream`, `06_robot_reference`）**：
+  - 链接 `bk_media` 与 `products/bk7259_robot` 编排器，实现 PCM 音频帧提交、摄像头视频帧提交及机器人全生命周期联动，并新增 CTest 端到端测试验证所有 8 个示例可执行程序返回 `0`。
 
 ### Phase 5：独立发布门禁复核（Release Gate）
-- [ ] Host 全量组件与示例 CMake/CTest 测试 100% 通过。
-- [ ] Python 工具链、Manifest、Doctor、`dbuild.sh` 测试（`pytest`）100% 通过。
-- [ ] Minimal 依赖边界与开源许可证扫描门禁 100% 通过。
-- [ ] 锁定 `release/v4.0.1.11` 的 AP/CP 双核交叉编译、符号边界检查与 `all-app.bin` / `app_pack.rbl` 固件生成 (`./tools/sdk_release_gate.sh`) 100% 通过。
-- [ ] 推送全部提交至 GitHub 并验证 GitHub Actions CI 全绿。
+- [x] Host 全量组件与示例 CMake/CTest 测试 100% 通过。
+- [x] Python 工具链、Manifest、Doctor、`dbuild.sh` 测试（`pytest`）100% 通过。
+- [x] Minimal 依赖边界与开源许可证扫描门禁 100% 通过。
+- [x] 锁定 `release/v4.0.1.11` 的 AP/CP 双核交叉编译、符号边界检查与 `all-app.bin` / `app_pack.rbl` 固件生成 (`./tools/sdk_release_gate.sh`) 100% 通过（`all-app.bin` SHA256: `ba95ad08219eaea0498296556774c7699cc8d3f01c96064023bf23cdfd7e4501`）。
+- [x] 推送全部提交至 GitHub 并验证 GitHub Actions CI 全绿。

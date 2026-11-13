@@ -14,6 +14,7 @@ typedef struct {
 } bk_provision_config_t;
 
 const bk_provision_config_t *bk_provision_default_config(void);
+const bk_provision_config_t *bk_provision_host_mock_config(void);
 bk_err_t bk_provision_start(const bk_provision_config_t *config);
 bk_err_t bk_provision_stop(void);
 

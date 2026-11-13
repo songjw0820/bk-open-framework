@@ -30,7 +30,22 @@ typedef struct {
     unsigned max_retries;
 } bk_net_config_t;
 
+#define BK_NET_SSID_MAX_LEN 32U
+#define BK_NET_PASSWORD_MAX_LEN 64U
+#define BK_NET_IP4_STR_LEN 16U
+
+typedef struct {
+    char ip[BK_NET_IP4_STR_LEN];
+    char mask[BK_NET_IP4_STR_LEN];
+    char gateway[BK_NET_IP4_STR_LEN];
+    char dns[BK_NET_IP4_STR_LEN];
+} bk_net_ip_info_t;
+
 const bk_net_config_t *bk_net_default_config(void);
+const bk_net_config_t *bk_net_host_mock_config(void);
+bk_err_t bk_net_set_credentials(const char *ssid, const char *password);
+const char *bk_net_get_ssid(void);
+bk_err_t bk_net_get_ip_info(bk_net_ip_info_t *info);
 bk_err_t bk_net_start(const bk_net_config_t *config);
 bk_net_state_t bk_net_get_state(void);
 bk_err_t bk_net_disconnect(void);

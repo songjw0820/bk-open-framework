@@ -58,10 +58,47 @@ static void test_lifecycle_and_callback_error_recovery(void)
     assert(bk_peripheral_close(handle) == BK_ERR_NOT_FOUND);
 }
 
+static void test_host_mock_and_board_peripherals(void)
+{
+    bk_peripheral_handle_t *uart = NULL;
+    const char tx[] = "PING_CP_UART0";
+    char rx[32] = {0};
+    size_t done = 0;
+    uint8_t level = 0;
+
+    assert(bk_peripheral_open(BK_PERIPHERAL_CP_UART0,
+                              bk_peripheral_host_mock_config(BK_PERIPHERAL_CP_UART0),
+                              &uart) == BK_OK);
+    assert(bk_peripheral_write(uart, tx, sizeof(tx), &done) == BK_OK);
+    assert(done == sizeof(tx));
+    assert(bk_peripheral_read(uart, rx, sizeof(rx), &done) == BK_OK);
+    assert(done == sizeof(tx));
+    assert(strcmp(rx, tx) == 0);
+    assert(bk_peripheral_close(uart) == BK_OK);
+
+    assert(bk_peripheral_gpio_set_level(12U, 1U) == BK_OK);
+    assert(bk_peripheral_gpio_get_level(12U, &level) == BK_OK);
+    assert(level == 1U);
+    assert(bk_peripheral_gpio_set_level(99U, 1U) == BK_ERR_INVALID_ARG);
+
+    assert(bk_peripheral_set_led(BK_LED_STATE_ON) == BK_ERR_NOT_SUPPORTED);
+    assert(bk_peripheral_set_motor(75U) == BK_ERR_NOT_SUPPORTED);
+
+    assert(bk_board_set_capability_enabled(BK_BOARD_CAPABILITY_LED, true) == BK_OK);
+    assert(bk_board_set_capability_enabled(BK_BOARD_CAPABILITY_VIBRATION, true) == BK_OK);
+
+    assert(bk_peripheral_set_led(BK_LED_STATE_ON) == BK_OK);
+    assert(bk_peripheral_get_led() == BK_LED_STATE_ON);
+    assert(bk_peripheral_set_motor(75U) == BK_OK);
+    assert(bk_peripheral_get_motor() == 75U);
+    assert(bk_peripheral_set_motor(101U) == BK_ERR_INVALID_ARG);
+}
+
 int main(void)
 {
     test_capabilities();
     test_lifecycle_and_callback_error_recovery();
+    test_host_mock_and_board_peripherals();
     puts("test_peripheral_caps: PASS");
     return 0;
 }

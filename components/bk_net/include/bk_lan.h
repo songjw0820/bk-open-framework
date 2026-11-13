@@ -23,9 +23,11 @@ typedef struct {
 } bk_lan_config_t;
 
 const bk_lan_config_t *bk_lan_default_config(void);
+const bk_lan_config_t *bk_lan_host_mock_config(void);
 bk_err_t bk_lan_start(const bk_lan_config_t *config);
 bk_err_t bk_lan_stop(void);
 bk_err_t bk_lan_publish(const bk_device_record_t *record);
+const bk_device_record_t *bk_lan_get_published_record(void);
 
 #ifdef __cplusplus
 }

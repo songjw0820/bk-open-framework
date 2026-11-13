@@ -91,10 +91,29 @@ int main(void)
 
     assert(bk_ota_fail(BK_ERR_NOT_FOUND) == BK_ERR_NOT_FOUND);
     assert(bk_ota_get_state() == BK_OTA_STATE_FAILED);
+    assert(bk_ota_get_last_error() == BK_ERR_NOT_FOUND);
     adapter_result = BK_OK;
     assert(bk_ota_start(&cfg) == BK_OK); /* direct start from FAILED is explicit recovery */
     assert(start_calls == 6);
     assert(bk_ota_get_state() == BK_OTA_STATE_DOWNLOADING);
+    assert(bk_ota_get_last_error() == BK_OK);
+    assert(bk_ota_finish() == BK_OK);
+    assert(bk_ota_get_state() == BK_OTA_STATE_DOWNLOADED);
+    assert(bk_ota_reset() == BK_OK);
+
+    {
+        bk_ota_partition_info_t part = {0};
+        bk_ota_config_t mock_cfg = {
+            .url = "https://ota.beken.example/app_pack.rbl",
+            .security_mode = BK_OTA_SECURITY_SDK,
+            .adapter = bk_ota_host_mock_adapter(),
+        };
+        assert(bk_ota_get_partition_info(&part) == BK_OK);
+        assert(part.length > 0U);
+        assert(bk_ota_start(&mock_cfg) == BK_OK);
+        assert(bk_ota_finish() == BK_OK);
+        assert(bk_ota_apply() == BK_OK);
+    }
 
     puts("bk_ota_state: ok");
     return 0;

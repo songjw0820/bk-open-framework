@@ -128,6 +128,10 @@ for nm_candidate in \
     break
   fi
 done
+if [ -z "$nm_tool" ] && [ "$use_docker" -eq 0 ]; then
+  echo "ERROR: arm-none-eabi-nm not found; refusing to skip AP/CP symbol boundary gate" >&2
+  exit 10
+fi
 if [ -n "$nm_tool" ]; then
   ap_syms=$("$nm_tool" "$ap_lib")
   cp_syms=$("$nm_tool" "$cp_lib")
@@ -143,6 +147,12 @@ if [ -n "$nm_tool" ]; then
     echo "ERROR: CP library did not bind bk_uart_init for CP_UART0" >&2
     exit 9
   fi
+  for ap_only_sym in bk7259_robot_start bk_net_start bk_ota_start bk_media_init bk_ui_init; do
+    if printf '%s\n' "$cp_syms" | grep -q "$ap_only_sym"; then
+      echo "ERROR: CP library must not include AP-only symbol: $ap_only_sym" >&2
+      exit 11
+    fi
+  done
 fi
 
 if [ ! -s "$artifact" ]; then

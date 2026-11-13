@@ -8,12 +8,50 @@ extern void lv_vendor_start(void);
 extern void lv_vendor_stop(void);
 extern void lv_vendor_disp_lock(void);
 extern void lv_vendor_disp_unlock(void);
+#if defined(CONFIG_BK_SMART_CONFIG)
+extern void bk_key_app_notify_ui_nav(uint8_t event);
+#endif
 #endif
 
 static struct {
     bk_ui_state_t state;
     bk_ui_adapter_t adapter;
+    bk_ui_stats_t stats;
 } s_ui;
+
+static bk_err_t host_mock_ui_noop(void *context)
+{
+    (void)context;
+    return BK_OK;
+}
+
+static bk_err_t host_mock_ui_render(void *context, const void *frame, size_t size)
+{
+    (void)context;
+    if (frame == NULL || size == 0U) {
+        return BK_ERR_INVALID_ARG;
+    }
+    return BK_OK;
+}
+
+static bk_err_t host_mock_ui_input(void *context, const bk_ui_input_event_t *event)
+{
+    (void)context;
+    if (event == NULL) {
+        return BK_ERR_INVALID_ARG;
+    }
+    return BK_OK;
+}
+
+static const bk_ui_adapter_t k_host_mock_ui_adapter = {
+    .context = NULL,
+    .init = host_mock_ui_noop,
+    .deinit = host_mock_ui_noop,
+    .start = host_mock_ui_noop,
+    .stop = host_mock_ui_noop,
+    .render = host_mock_ui_render,
+    .dispatch_input = host_mock_ui_input,
+};
 
 #if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_LVGL)
 static bk_err_t armino_ui_noop(void *context)
@@ -53,6 +91,9 @@ static bk_err_t armino_ui_input(void *context, const bk_ui_input_event_t *event)
     if (event == NULL) {
         return BK_ERR_INVALID_ARG;
     }
+#if defined(CONFIG_BK_SMART_CONFIG)
+    bk_key_app_notify_ui_nav((uint8_t)event->type);
+#endif
     return BK_OK;
 }
 
@@ -76,6 +117,11 @@ const bk_ui_adapter_t *bk_ui_default_adapter(void)
 #endif
 }
 
+const bk_ui_adapter_t *bk_ui_host_mock_adapter(void)
+{
+    return &k_host_mock_ui_adapter;
+}
+
 static int has_adapter(const bk_ui_adapter_t *adapter)
 {
     return adapter != NULL && (adapter->init != NULL || adapter->deinit != NULL ||
@@ -91,6 +137,7 @@ bk_err_t bk_ui_init(const bk_ui_config_t *config)
     adapter = config->adapter != NULL ? config->adapter : bk_ui_default_adapter();
     if (!has_adapter(adapter)) return BK_ERR_NOT_FOUND;
     if (s_ui.state != BK_UI_STATE_INITIAL) return BK_ERR_ALREADY_INITIALIZED;
+    memset(&s_ui.stats, 0, sizeof(s_ui.stats));
     s_ui.adapter = *adapter;
     if (s_ui.adapter.init != NULL) {
         result = s_ui.adapter.init(s_ui.adapter.context);
@@ -142,18 +189,42 @@ bk_ui_state_t bk_ui_get_state(void)
 
 bk_err_t bk_ui_render(const void *frame, size_t size)
 {
+    bk_err_t err;
     if (s_ui.state == BK_UI_STATE_INITIAL) return BK_ERR_NOT_INITIALIZED;
     if (s_ui.state != BK_UI_STATE_STARTED) return BK_ERR_NOT_STARTED;
     if (frame == NULL || size == 0U) return BK_ERR_INVALID_ARG;
     if (s_ui.adapter.render == NULL) return BK_ERR_NOT_SUPPORTED;
-    return s_ui.adapter.render(s_ui.adapter.context, frame, size);
+    err = s_ui.adapter.render(s_ui.adapter.context, frame, size);
+    if (err == BK_OK) {
+        s_ui.stats.rendered_frames++;
+        s_ui.stats.rendered_bytes += size;
+    }
+    return err;
 }
 
 bk_err_t bk_ui_dispatch_input(const bk_ui_input_event_t *event)
 {
+    bk_err_t err;
     if (s_ui.state == BK_UI_STATE_INITIAL) return BK_ERR_NOT_INITIALIZED;
     if (s_ui.state != BK_UI_STATE_STARTED) return BK_ERR_NOT_STARTED;
     if (event == NULL) return BK_ERR_INVALID_ARG;
     if (s_ui.adapter.dispatch_input == NULL) return BK_ERR_NOT_SUPPORTED;
-    return s_ui.adapter.dispatch_input(s_ui.adapter.context, event);
+    err = s_ui.adapter.dispatch_input(s_ui.adapter.context, event);
+    if (err == BK_OK) {
+        s_ui.stats.input_events++;
+        s_ui.stats.last_event = *event;
+    }
+    return err;
+}
+
+bk_err_t bk_ui_get_stats(bk_ui_stats_t *stats)
+{
+    if (stats == NULL) {
+        return BK_ERR_INVALID_ARG;
+    }
+    if (s_ui.state == BK_UI_STATE_INITIAL) {
+        return BK_ERR_NOT_INITIALIZED;
+    }
+    *stats = s_ui.stats;
+    return BK_OK;
 }

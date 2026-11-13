@@ -3,6 +3,18 @@
 
 #include <stddef.h>
 
+static bk_err_t host_mock_provision_action(void *context)
+{
+    (void)context;
+    return BK_OK;
+}
+
+static const bk_provision_config_t g_host_mock_provision_config = {
+    .context = NULL,
+    .start = host_mock_provision_action,
+    .stop = host_mock_provision_action,
+};
+
 #if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_BK_SMART_CONFIG)
 extern int bk_sconf_init(void);
 extern void bk_sconf_prepare_for_smart_config(void);
@@ -25,15 +37,42 @@ static const bk_provision_config_t g_armino_provision_config = {
     .start = armino_provision_start,
     .stop = armino_provision_stop,
 };
+#elif defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+#include <modules/wifi.h>
+
+static bk_err_t armino_sdk_provision_start(void *context)
+{
+    (void)context;
+    return bk_wifi_sta_start();
+}
+
+static bk_err_t armino_sdk_provision_stop(void *context)
+{
+    (void)context;
+    return BK_OK;
+}
+
+static const bk_provision_config_t g_armino_sdk_provision_config = {
+    .context = NULL,
+    .start = armino_sdk_provision_start,
+    .stop = armino_sdk_provision_stop,
+};
 #endif
 
 const bk_provision_config_t *bk_provision_default_config(void)
 {
 #if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_BK_SMART_CONFIG)
     return &g_armino_provision_config;
+#elif defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    return &g_armino_sdk_provision_config;
 #else
     return NULL;
 #endif
+}
+
+const bk_provision_config_t *bk_provision_host_mock_config(void)
+{
+    return &g_host_mock_provision_config;
 }
 
 static bk_provision_config_t config;

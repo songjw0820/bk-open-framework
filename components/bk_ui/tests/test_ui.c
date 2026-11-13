@@ -47,6 +47,13 @@ int main(void)
     assert(bk_ui_get_state() == BK_UI_STATE_STARTED);
     input_error = BK_OK;
     assert(bk_ui_dispatch_input(&event) == BK_OK);
+    {
+        bk_ui_stats_t stats = {0};
+        assert(bk_ui_get_stats(&stats) == BK_OK);
+        assert(stats.rendered_frames == 1U && stats.rendered_bytes == 1U);
+        assert(stats.input_events == 1U && stats.last_event.type == 1U);
+        assert(bk_ui_host_mock_adapter() != NULL);
+    }
     assert(bk_ui_dispatch_input(NULL) == BK_ERR_INVALID_ARG);
     stop_error = BK_ERR_BUSY;
     assert(bk_ui_stop() == BK_ERR_BUSY);

@@ -38,7 +38,7 @@
 | Robot reference host | 无插件和可选插件 host 测试均通过 | PASS | CI robot-host job |
 | 组合启动 | 网络、媒体、UI、OTA、外设生命周期日志无未处理错误 | PENDING | 待目标固件日志 |
 | Optional Agora/AI | 明确记录外部 SDK ref、许可证审批、配置和端到端会话日志 | PENDING | 可选插件未执行 |
-| Release artifact | SDK 原生 AP/CP 构建、`all-app.bin` SHA256 和配置快照 | PASS | `./tools/sdk_release_gate.sh` (`all-app.bin` SHA256: `022e28b4caaae3338399538287bcc16e3fd3ca9f345a4c97efaeedc049f9aae2`) |
+| Release artifact | SDK 原生 AP/CP 构建、`all-app.bin` SHA256 和配置快照 | PASS | `./tools/sdk_release_gate.sh` (`all-app.bin` SHA256: `ba95ad08219eaea0498296556774c7699cc8d3f01c96064023bf23cdfd7e4501`) |
 
 ## 独立硬件发布门禁
 

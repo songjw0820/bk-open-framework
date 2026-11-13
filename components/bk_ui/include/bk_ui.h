@@ -42,6 +42,13 @@ typedef struct {
     const bk_ui_adapter_t *adapter;
 } bk_ui_config_t;
 
+typedef struct {
+    uint32_t rendered_frames;
+    size_t rendered_bytes;
+    uint32_t input_events;
+    bk_ui_input_event_t last_event;
+} bk_ui_stats_t;
+
 bk_err_t bk_ui_init(const bk_ui_config_t *config);
 bk_err_t bk_ui_start(void);
 bk_err_t bk_ui_stop(void);
@@ -49,7 +56,9 @@ bk_err_t bk_ui_deinit(void);
 bk_ui_state_t bk_ui_get_state(void);
 bk_err_t bk_ui_render(const void *frame, size_t size);
 bk_err_t bk_ui_dispatch_input(const bk_ui_input_event_t *event);
+bk_err_t bk_ui_get_stats(bk_ui_stats_t *stats);
 const bk_ui_adapter_t *bk_ui_default_adapter(void);
+const bk_ui_adapter_t *bk_ui_host_mock_adapter(void);
 
 #ifdef __cplusplus
 }

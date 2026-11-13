@@ -45,8 +45,15 @@ typedef struct {
     bool open;
 } bk_peripheral_info_t;
 
+typedef enum {
+    BK_LED_STATE_OFF = 0,
+    BK_LED_STATE_ON = 1,
+    BK_LED_STATE_BLINK = 2,
+} bk_led_state_t;
+
 bool bk_peripheral_has_capability(bk_peripheral_id_t id);
 const bk_peripheral_config_t *bk_peripheral_default_config(bk_peripheral_id_t id);
+const bk_peripheral_config_t *bk_peripheral_host_mock_config(bk_peripheral_id_t id);
 bk_err_t bk_peripheral_query(bk_peripheral_id_t id, bk_peripheral_info_t *info);
 bk_err_t bk_peripheral_open(bk_peripheral_id_t id,
                             const bk_peripheral_config_t *config,
@@ -56,6 +63,13 @@ bk_err_t bk_peripheral_read(bk_peripheral_handle_t *handle, void *data,
 bk_err_t bk_peripheral_write(bk_peripheral_handle_t *handle, const void *data,
                              size_t size, size_t *written_size);
 bk_err_t bk_peripheral_close(bk_peripheral_handle_t *handle);
+
+bk_err_t bk_peripheral_gpio_set_level(uint8_t pin, uint8_t level);
+bk_err_t bk_peripheral_gpio_get_level(uint8_t pin, uint8_t *level);
+bk_err_t bk_peripheral_set_led(bk_led_state_t state);
+bk_led_state_t bk_peripheral_get_led(void);
+bk_err_t bk_peripheral_set_motor(uint8_t duty_percent);
+uint8_t bk_peripheral_get_motor(void);
 
 #ifdef __cplusplus
 }

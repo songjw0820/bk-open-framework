@@ -40,6 +40,12 @@ int main(void)
     assert(bk_media_get_state() == BK_MEDIA_STATE_STARTED);
     data_error = BK_OK;
     assert(bk_media_submit_audio(&sample, 1U) == BK_OK);
+    {
+        bk_media_stats_t stats = {0};
+        assert(bk_media_get_stats(&stats) == BK_OK);
+        assert(stats.audio_frames == 1U && stats.audio_bytes == 1U);
+        assert(bk_media_host_mock_adapter() != NULL);
+    }
 
     stop_error = BK_ERR_BUSY;
     assert(bk_media_stop() == BK_ERR_BUSY);
@@ -68,6 +74,10 @@ int main(void)
 
     adapter = (bk_media_adapter_t){ .init = callback };
     assert(bk_media_deinit() == BK_ERR_BUSY);
+
+    assert(bk_media_stop() == BK_ERR_NOT_SUPPORTED);
+    s_media_cleanup:
+    (void)0;
     puts("test_media: PASS");
     return 0;
 }

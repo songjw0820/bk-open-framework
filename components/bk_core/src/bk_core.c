@@ -2,6 +2,24 @@
 
 bk_core_state_t g_bk_core;
 
+void bk_core_lock(void)
+{
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    if (g_bk_core.lock != NULL) {
+        (void)rtos_lock_mutex(&g_bk_core.lock);
+    }
+#endif
+}
+
+void bk_core_unlock(void)
+{
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    if (g_bk_core.lock != NULL) {
+        (void)rtos_unlock_mutex(&g_bk_core.lock);
+    }
+#endif
+}
+
 bk_err_t bk_core_init(const bk_core_config_t *config)
 {
     if (config == NULL) {
@@ -14,6 +32,13 @@ bk_err_t bk_core_init(const bk_core_config_t *config)
         return BK_ERR_LIMIT;
     }
 
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    if (g_bk_core.lock == NULL) {
+        if (rtos_init_mutex(&g_bk_core.lock) != BK_OK) {
+            return BK_ERR_NO_MEMORY;
+        }
+    }
+#endif
     g_bk_core.initialized = 1;
     g_bk_core.started = 0;
     g_bk_core.publishing = 0;
@@ -47,5 +72,11 @@ bk_err_t bk_core_deinit(void)
     g_bk_core.started = 0;
     g_bk_core.max_subscribers = 0U;
     g_bk_core.subscription_count = 0U;
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    if (g_bk_core.lock != NULL) {
+        (void)rtos_deinit_mutex(&g_bk_core.lock);
+        g_bk_core.lock = NULL;
+    }
+#endif
     return BK_OK;
 }

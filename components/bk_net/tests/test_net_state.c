@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stddef.h>
+#include <string.h>
 #include "bk_net.h"
 #include "bk_provision.h"
 #include "bk_lan.h"
@@ -100,11 +101,48 @@ static void test_cross_module_reentrancy(void) {
     assert(bk_net_get_state() == BK_NET_STATE_CONNECTED);
 }
 
+static void test_credentials_ip_and_host_mocks(void) {
+    bk_net_ip_info_t ip_info;
+    bk_device_record_t record = {
+        .id = "bk7259-min-01",
+        .name = "BK7259 Minimal Node",
+        .address = "192.168.4.100",
+        .port = 52110U,
+    };
+    const bk_device_record_t *published;
+
+    assert(bk_net_stop() == BK_OK);
+    assert(bk_net_get_ip_info(&ip_info) == BK_ERR_NOT_STARTED);
+    assert(bk_net_set_credentials(NULL, "pwd") == BK_ERR_INVALID_ARG);
+    assert(bk_net_set_credentials("", "pwd") == BK_ERR_INVALID_ARG);
+    assert(bk_net_set_credentials("Beken_Lab_WiFi", "12345678") == BK_OK);
+    assert(bk_net_get_ssid() != NULL && strcmp(bk_net_get_ssid(), "Beken_Lab_WiFi") == 0);
+
+    assert(bk_net_start(bk_net_host_mock_config()) == BK_OK);
+    assert(bk_net_get_state() == BK_NET_STATE_CONNECTED);
+    assert(bk_net_get_ip_info(&ip_info) == BK_OK);
+    assert(strcmp(ip_info.ip, "192.168.4.100") == 0);
+
+    assert(bk_provision_start(bk_provision_host_mock_config()) == BK_OK);
+    assert(bk_net_get_state() == BK_NET_STATE_PROVISIONING);
+    assert(bk_net_notify_connected() == BK_OK);
+
+    assert(bk_lan_start(bk_lan_host_mock_config()) == BK_OK);
+    assert(bk_lan_get_published_record() == NULL);
+    assert(bk_lan_publish(&record) == BK_OK);
+    published = bk_lan_get_published_record();
+    assert(published != NULL && strcmp(published->id, "bk7259-min-01") == 0);
+    assert(bk_lan_stop() == BK_OK);
+    assert(bk_lan_get_published_record() == NULL);
+    assert(bk_net_stop() == BK_OK);
+}
+
 int main(void) {
     test_lifecycle();
     test_reprovision_and_lan();
     test_stop_restart_and_invalid();
     test_reentrancy_and_missing_callbacks();
     test_cross_module_reentrancy();
+    test_credentials_ip_and_host_mocks();
     return 0;
 }
