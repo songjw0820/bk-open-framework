@@ -1,0 +1,18 @@
+menu "BK7259 robot product"
+
+config BK7259_ROBOT
+    bool "Enable BK7259 robot product"
+    default y
+    select BK_CORE
+    select BK_BOARD
+    select BK_NET
+
+config BK7259_ROBOT_AGORA
+    bool "Enable optional Agora adapter"
+    default n
+    depends on BK7259_ROBOT
+    help
+      Compile the opaque adapter callbacks. Vendor Agora headers and libraries
+      must be injected by the product integration and are not part of this tree.
+
+endmenu

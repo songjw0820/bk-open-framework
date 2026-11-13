@@ -1,0 +1,164 @@
+#include "bk7259_robot.h"
+
+#include "bk_board.h"
+#include "bk_core.h"
+
+#include <stddef.h>
+
+#if defined(CONFIG_BK7259_ROBOT_AGORA) && CONFIG_BK7259_ROBOT_AGORA
+#define BK7259_ROBOT_AGORA_ENABLED 1
+#else
+#define BK7259_ROBOT_AGORA_ENABLED 0
+#endif
+
+typedef struct {
+    bk_net_config_t user_network;
+    const bk7259_robot_agora_adapter_t *agora;
+} robot_runtime_t;
+
+static robot_runtime_t g_runtime;
+static int g_started;
+static int g_agora_initialized;
+
+static bk_err_t notify_agora(bk_net_state_t state)
+{
+#if BK7259_ROBOT_AGORA_ENABLED
+    if (g_runtime.agora != NULL && g_runtime.agora->on_network_state != NULL) {
+        return g_runtime.agora->on_network_state(g_runtime.agora->context, state);
+    }
+#else
+    (void)state;
+#endif
+    return BK_OK;
+}
+
+static bk_err_t network_start(void *context)
+{
+    robot_runtime_t *runtime = context;
+    if (runtime->user_network.start != NULL) {
+        return runtime->user_network.start(runtime->user_network.context);
+    }
+    return BK_OK;
+}
+
+static bk_err_t network_connect(void *context)
+{
+    robot_runtime_t *runtime = context;
+    bk_err_t err;
+    if (runtime->user_network.connect == NULL) {
+        return BK_ERR_NOT_FOUND;
+    }
+    err = runtime->user_network.connect(runtime->user_network.context);
+    if (err != BK_OK) {
+        return err;
+    }
+    return notify_agora(BK_NET_STATE_CONNECTED);
+}
+
+static bk_err_t network_disconnect(void *context)
+{
+    robot_runtime_t *runtime = context;
+    bk_err_t err = BK_OK;
+    if (runtime->user_network.disconnect != NULL) {
+        err = runtime->user_network.disconnect(runtime->user_network.context);
+    }
+    if (err != BK_OK) {
+        return err;
+    }
+    return notify_agora(BK_NET_STATE_DISCONNECTED);
+}
+
+bk_err_t bk7259_robot_start(const bk_net_config_t *network,
+                            const bk7259_robot_agora_adapter_t *agora)
+{
+    bk_board_config_t board = {.board_name = "bk7259_robot"};
+    bk_core_config_t core = {.max_subscribers = BK_CORE_DEFAULT_MAX_SUBSCRIBERS};
+    bk_net_config_t wrapped_network;
+    bk_err_t err;
+
+    if (network == NULL || network->connect == NULL) {
+        return BK_ERR_INVALID_ARG;
+    }
+    if (g_started) {
+        return BK_ERR_ALREADY_STARTED;
+    }
+#if !BK7259_ROBOT_AGORA_ENABLED
+    if (agora != NULL) {
+        return BK_ERR_NOT_SUPPORTED;
+    }
+#else
+    if (agora != NULL && agora->init == NULL) {
+        return BK_ERR_INVALID_ARG;
+    }
+#endif
+
+    err = bk_core_init(&core);
+    if (err != BK_OK) {
+        return err;
+    }
+    err = bk_board_init(&board);
+    if (err != BK_OK) {
+        (void)bk_core_deinit();
+        return err;
+    }
+
+    g_runtime.user_network = *network;
+    g_runtime.agora = agora;
+#if BK7259_ROBOT_AGORA_ENABLED
+    if (agora != NULL) {
+        err = agora->init(agora->context);
+        if (err != BK_OK) {
+            (void)bk_core_deinit();
+            return err;
+        }
+        g_agora_initialized = 1;
+    }
+#else
+    (void)agora;
+#endif
+
+    err = bk_core_start();
+    if (err != BK_OK) {
+        (void)bk7259_robot_stop();
+        return err;
+    }
+    wrapped_network = *network;
+    wrapped_network.context = &g_runtime;
+    wrapped_network.start = network_start;
+    wrapped_network.connect = network_connect;
+    wrapped_network.disconnect = network_disconnect;
+    err = bk_net_start(&wrapped_network);
+    if (err != BK_OK) {
+        (void)bk7259_robot_stop();
+        return err;
+    }
+    g_started = 1;
+    return BK_OK;
+}
+
+bk_err_t bk7259_robot_stop(void)
+{
+    bk_err_t err = BK_OK;
+    if (g_started || bk_net_get_state() != BK_NET_STATE_INITIAL) {
+        if (bk_net_get_state() != BK_NET_STATE_STOPPED &&
+            bk_net_get_state() != BK_NET_STATE_INITIAL) {
+            err = bk_net_stop();
+        }
+    }
+#if BK7259_ROBOT_AGORA_ENABLED
+    if (g_agora_initialized && g_runtime.agora != NULL &&
+        g_runtime.agora->deinit != NULL) {
+        bk_err_t deinit_err = g_runtime.agora->deinit(g_runtime.agora->context);
+        if (err == BK_OK) {
+            err = deinit_err;
+        }
+    }
+#endif
+    g_agora_initialized = 0;
+    g_runtime.agora = NULL;
+    g_started = 0;
+    if (bk_core_deinit() != BK_OK && err == BK_OK) {
+        err = BK_ERR_NOT_INITIALIZED;
+    }
+    return err;
+}
