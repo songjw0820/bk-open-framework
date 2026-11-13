@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+#include <common/bk_include.h>
 #include <common/bk_err.h>
 
 #ifndef BK_ERR_INVALID_ARG

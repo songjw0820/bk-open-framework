@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_MEDIA)
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && (defined(CONFIG_MEDIA_SERVICE) || defined(CONFIG_MEDIA))
 #include <common/bk_include.h>
 extern bk_err_t media_service_init(void);
 #endif
@@ -12,7 +12,7 @@ static struct {
     bk_media_adapter_t adapter;
 } s_media;
 
-#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_MEDIA)
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && (defined(CONFIG_MEDIA_SERVICE) || defined(CONFIG_MEDIA))
 static bk_err_t armino_media_init(void *context)
 {
     (void)context;
@@ -47,7 +47,7 @@ static const bk_media_adapter_t k_default_media_adapter = {
 
 const bk_media_adapter_t *bk_media_default_adapter(void)
 {
-#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && defined(CONFIG_MEDIA)
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && (defined(CONFIG_MEDIA_SERVICE) || defined(CONFIG_MEDIA))
     return &k_default_media_adapter;
 #else
     return NULL;

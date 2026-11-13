@@ -3,9 +3,12 @@
 #include <string.h>
 #include "bk_board.h"
 
-#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)) && !defined(CONFIG_SOC_SMP) && !defined(BK_ARMINO_SUBSYSTEM_AP)
+#define BK_PERIPHERAL_HAS_CP_UART0_HW 1
 #include <driver/uart.h>
 #define BK_PERIPHERAL_UART_TIMEOUT_MS 100U
+#else
+#define BK_PERIPHERAL_HAS_CP_UART0_HW 0
 #endif
 
 #define BK_PERIPHERAL_MAX_OPEN 4U
@@ -19,7 +22,7 @@ struct bk_peripheral_handle {
 
 static struct bk_peripheral_handle g_handles[BK_PERIPHERAL_MAX_OPEN];
 
-#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+#if BK_PERIPHERAL_HAS_CP_UART0_HW
 static bk_err_t armino_uart0_read(void *context, void *data,
                                   size_t size, size_t *read_size)
 {
@@ -69,7 +72,7 @@ static const bk_peripheral_config_t g_armino_uart0_config = {
 
 const bk_peripheral_config_t *bk_peripheral_default_config(bk_peripheral_id_t id)
 {
-#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+#if BK_PERIPHERAL_HAS_CP_UART0_HW
     if (id == BK_PERIPHERAL_CP_UART0) {
         return &g_armino_uart0_config;
     }
@@ -175,7 +178,7 @@ bk_err_t bk_peripheral_open(bk_peripheral_id_t id,
     for (size_t i = 0; i < BK_PERIPHERAL_MAX_OPEN; ++i) {
         if (!g_handles[i].in_use) {
             bool hw_init = false;
-#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+#if BK_PERIPHERAL_HAS_CP_UART0_HW
             if (id == BK_PERIPHERAL_CP_UART0 &&
                 config == &g_armino_uart0_config) {
                 const uart_config_t uart_cfg = {
@@ -257,7 +260,7 @@ bk_err_t bk_peripheral_close(bk_peripheral_handle_t *handle)
     if (handle == NULL || !handle->in_use) {
         return BK_ERR_NOT_FOUND;
     }
-#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+#if BK_PERIPHERAL_HAS_CP_UART0_HW
     if (handle->hw_initialized && handle->id == BK_PERIPHERAL_CP_UART0) {
         (void)bk_uart_deinit(UART_ID_0);
     }

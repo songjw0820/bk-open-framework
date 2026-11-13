@@ -116,6 +116,35 @@ for built_lib in "$ap_lib" "$cp_lib"; do
     exit 6
   fi
 done
+
+nm_tool=""
+for nm_candidate in \
+  "${BK_TOOLCHAIN_PATH:-}/arm-none-eabi-nm" \
+  "/home/antigravity/toolchains/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-nm" \
+  "/opt/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-nm" \
+  "$(command -v arm-none-eabi-nm 2>/dev/null || true)"; do
+  if [ -n "$nm_candidate" ] && [ -x "$nm_candidate" ]; then
+    nm_tool="$nm_candidate"
+    break
+  fi
+done
+if [ -n "$nm_tool" ]; then
+  ap_syms=$("$nm_tool" "$ap_lib")
+  cp_syms=$("$nm_tool" "$cp_lib")
+  if ! printf '%s\n' "$ap_syms" | grep -q "media_service_init"; then
+    echo "ERROR: AP library did not bind media_service_init (CONFIG_MEDIA_SERVICE mismatch)" >&2
+    exit 7
+  fi
+  if printf '%s\n' "$ap_syms" | grep -q "bk_uart_init"; then
+    echo "ERROR: AP library must not bind CP_UART0 directly to local UART_ID_0" >&2
+    exit 8
+  fi
+  if ! printf '%s\n' "$cp_syms" | grep -q "bk_uart_init"; then
+    echo "ERROR: CP library did not bind bk_uart_init for CP_UART0" >&2
+    exit 9
+  fi
+fi
+
 if [ ! -s "$artifact" ]; then
   echo "ERROR: build completed without a non-empty expected artifact: $artifact" >&2
   exit 6

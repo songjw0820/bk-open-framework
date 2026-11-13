@@ -13,11 +13,11 @@ def git(repo: Path, *args: str) -> str:
 
 def make_repo(path: Path, ref: str, content: str = "x") -> str:
     path.mkdir()
-    git(path, "init", "-q")
+    git(path, "-c", "init.defaultBranch=main", "init", "-q")
     (path / "README").write_text(content, encoding="utf-8")
     git(path, "add", ".")
     git(path, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "init")
-    git(path, "checkout", "-qb", ref)
+    git(path, "checkout", "-qB", ref)
     return git(path, "rev-parse", "HEAD")
 
 

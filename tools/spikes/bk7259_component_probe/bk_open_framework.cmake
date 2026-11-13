@@ -34,6 +34,12 @@ armino_component_register(
     INCLUDE_DIRS "${bk_open_framework_incs}"
 )
 
+if(ARMINO_SOC STREQUAL "bk7259_ap")
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE BK_ARMINO_SUBSYSTEM_AP=1)
+elseif(ARMINO_SOC STREQUAL "bk7259")
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE BK_ARMINO_SUBSYSTEM_CP=1)
+endif()
+
 target_link_libraries(${COMPONENT_LIB} INTERFACE
     "-Wl,-u,bk7259_robot_start"
     "-Wl,-u,bk_net_default_config"
