@@ -24,6 +24,60 @@ static int g_board_initialized;
 static int g_agora_initialized;
 #endif
 
+#ifdef BK7259_ROBOT_TEST_HOOKS
+static bk7259_robot_lifecycle_ops_t g_lifecycle_ops;
+
+void bk7259_robot_set_lifecycle_ops(const bk7259_robot_lifecycle_ops_t *ops)
+{
+    g_lifecycle_ops = ops != NULL ? *ops : (bk7259_robot_lifecycle_ops_t){0};
+}
+
+void bk7259_robot_reset_lifecycle_ops(void)
+{
+    g_lifecycle_ops = (bk7259_robot_lifecycle_ops_t){0};
+}
+#endif
+
+static bk_err_t lifecycle_core_init(const bk_core_config_t *config)
+{
+#ifdef BK7259_ROBOT_TEST_HOOKS
+    if (g_lifecycle_ops.core_init != NULL) return g_lifecycle_ops.core_init(config);
+#endif
+    return bk_core_init(config);
+}
+
+static bk_err_t lifecycle_core_start(void)
+{
+#ifdef BK7259_ROBOT_TEST_HOOKS
+    if (g_lifecycle_ops.core_start != NULL) return g_lifecycle_ops.core_start();
+#endif
+    return bk_core_start();
+}
+
+static bk_err_t lifecycle_core_deinit(void)
+{
+#ifdef BK7259_ROBOT_TEST_HOOKS
+    if (g_lifecycle_ops.core_deinit != NULL) return g_lifecycle_ops.core_deinit();
+#endif
+    return bk_core_deinit();
+}
+
+static bk_err_t lifecycle_board_init(const bk_board_config_t *config)
+{
+#ifdef BK7259_ROBOT_TEST_HOOKS
+    if (g_lifecycle_ops.board_init != NULL) return g_lifecycle_ops.board_init(config);
+#endif
+    return bk_board_init(config);
+}
+
+static bk_err_t lifecycle_board_deinit(void)
+{
+#ifdef BK7259_ROBOT_TEST_HOOKS
+    if (g_lifecycle_ops.board_deinit != NULL) return g_lifecycle_ops.board_deinit();
+#endif
+    return bk_board_deinit();
+}
+
 static bk_err_t notify_agora(bk_net_state_t state)
 {
 #if BK7259_ROBOT_AGORA_ENABLED
@@ -96,20 +150,18 @@ bk_err_t bk7259_robot_start(const bk_net_config_t *network,
     }
 #endif
 
-    err = bk_core_init(&core);
+    err = lifecycle_core_init(&core);
     if (err != BK_OK) {
         return err;
     }
     g_core_initialized = 1;
-    err = bk_board_init(&board);
+    g_started = 1;
+    err = lifecycle_board_init(&board);
     if (err != BK_OK) {
-        if (bk_core_deinit() == BK_OK) {
-            g_core_initialized = 0;
-        }
-        return err;
+        bk_err_t cleanup_err = bk7259_robot_stop();
+        return cleanup_err == BK_OK ? err : cleanup_err;
     }
     g_board_initialized = 1;
-    g_started = 1;
 
     g_runtime.user_network = *network;
     g_runtime.agora = agora;
@@ -126,7 +178,7 @@ bk_err_t bk7259_robot_start(const bk_net_config_t *network,
     (void)agora;
 #endif
 
-    err = bk_core_start();
+    err = lifecycle_core_start();
     if (err != BK_OK) {
         bk_err_t cleanup_err = bk7259_robot_stop();
         return cleanup_err == BK_OK ? err : cleanup_err;
@@ -169,14 +221,14 @@ bk_err_t bk7259_robot_stop(void)
     }
 #endif
     if (g_core_initialized) {
-        err = bk_core_deinit();
+        err = lifecycle_core_deinit();
         if (err != BK_OK) {
             return err;
         }
         g_core_initialized = 0;
     }
     if (g_board_initialized) {
-        err = bk_board_deinit();
+        err = lifecycle_board_deinit();
         if (err != BK_OK) {
             return err;
         }

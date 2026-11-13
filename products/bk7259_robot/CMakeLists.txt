@@ -51,6 +51,7 @@ if(BK7259_ROBOT_BUILD_TESTS)
         ../../components/bk_net/include
         ../../boards/bk7259_robot)
     target_compile_features(bk7259_robot_test PRIVATE c_std_11)
+    target_compile_definitions(bk7259_robot_test PRIVATE BK7259_ROBOT_TEST_HOOKS=1)
     if(BK7259_ROBOT_ENABLE_AGORA)
         target_compile_definitions(bk7259_robot_test PRIVATE CONFIG_BK7259_ROBOT_AGORA=1)
     endif()

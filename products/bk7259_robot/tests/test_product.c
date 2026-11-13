@@ -23,6 +23,9 @@ static bk_err_t net_disconnect(void *context)
 static int adapter_events;
 static int fail_adapter_init;
 static int fail_adapter_deinit;
+static int fail_core_deinit;
+static int fail_board_init;
+static int fail_board_deinit;
 static bk_err_t adapter_init(void *context)
 {
     (void)context;
@@ -42,6 +45,50 @@ static bk_err_t adapter_deinit(void *context)
     if (fail_adapter_deinit) return BK_ERR_BUSY;
     adapter_events |= 4;
     return BK_OK;
+}
+
+static bk_err_t hooked_core_deinit(void)
+{
+    return fail_core_deinit ? BK_ERR_BUSY : bk_core_deinit();
+}
+
+static bk_err_t hooked_board_init(const bk_board_config_t *config)
+{
+    if (fail_board_init) return BK_ERR_INVALID_ARG;
+    return bk_board_init(config);
+}
+
+static bk_err_t hooked_board_deinit(void)
+{
+    return fail_board_deinit ? BK_ERR_BUSY : bk_board_deinit();
+}
+
+static void test_lifecycle_failure_retry(void)
+{
+    bk_net_config_t net = {.connect = net_connect, .disconnect = net_disconnect};
+    const bk7259_robot_lifecycle_ops_t ops = {
+        .core_deinit = hooked_core_deinit,
+        .board_init = hooked_board_init,
+        .board_deinit = hooked_board_deinit,
+    };
+
+    fail_core_deinit = 1;
+    fail_board_init = 1;
+    bk7259_robot_set_lifecycle_ops(&ops);
+    assert(bk7259_robot_start(&net, NULL) == BK_ERR_BUSY);
+    assert(bk_board_get_info() == NULL);
+    fail_core_deinit = 0;
+    assert(bk7259_robot_stop() == BK_OK);
+    bk7259_robot_reset_lifecycle_ops();
+
+    assert(bk7259_robot_start(&net, NULL) == BK_OK);
+    fail_board_deinit = 1;
+    bk7259_robot_set_lifecycle_ops(&ops);
+    assert(bk7259_robot_stop() == BK_ERR_BUSY);
+    assert(bk_board_get_info() != NULL);
+    fail_board_deinit = 0;
+    assert(bk7259_robot_stop() == BK_OK);
+    bk7259_robot_reset_lifecycle_ops();
 }
 
 static void test_startup_rollback_with_disconnect_failure(void)
@@ -122,6 +169,7 @@ static void test_plugin_callback_boundary(void)
 int main(void)
 {
     test_invalid_network_config();
+    test_lifecycle_failure_retry();
 #if defined(CONFIG_BK7259_ROBOT_AGORA) && CONFIG_BK7259_ROBOT_AGORA
     test_plugin_callback_boundary();
 #else
