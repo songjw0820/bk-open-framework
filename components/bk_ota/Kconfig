@@ -1,0 +1,7 @@
+menuconfig BK_OTA
+    bool "Enable BK OTA component"
+    default n
+    help
+      Enable the chip-independent OTA adapter boundary.
+      Signing keys, rollback policy, and production security are provided by
+      the SDK or product integration.
