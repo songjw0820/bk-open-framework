@@ -7,8 +7,13 @@
 #include "agora_adapter.h"
 
 static int fail_disconnect;
+static int fail_connect;
 static bk_err_t net_start(void *context) { (void)context; return BK_OK; }
-static bk_err_t net_connect(void *context) { (void)context; return BK_OK; }
+static bk_err_t net_connect(void *context)
+{
+    (void)context;
+    return fail_connect ? BK_ERR_BUSY : BK_OK;
+}
 static bk_err_t net_disconnect(void *context)
 {
     (void)context;
@@ -17,6 +22,7 @@ static bk_err_t net_disconnect(void *context)
 
 static int adapter_events;
 static int fail_adapter_init;
+static int fail_adapter_deinit;
 static bk_err_t adapter_init(void *context)
 {
     (void)context;
@@ -30,7 +36,31 @@ static bk_err_t adapter_state(void *context, bk_net_state_t state)
     if (state == BK_NET_STATE_CONNECTED) adapter_events |= 2;
     return BK_OK;
 }
-static bk_err_t adapter_deinit(void *context) { (void)context; adapter_events |= 4; return BK_OK; }
+static bk_err_t adapter_deinit(void *context)
+{
+    (void)context;
+    if (fail_adapter_deinit) return BK_ERR_BUSY;
+    adapter_events |= 4;
+    return BK_OK;
+}
+
+static void test_startup_rollback_with_disconnect_failure(void)
+{
+    bk_net_config_t net = {
+        .start = net_start,
+        .connect = net_connect,
+        .disconnect = net_disconnect,
+    };
+    fail_connect = 1;
+    fail_disconnect = 1;
+    assert(bk7259_robot_start(&net, NULL) == BK_ERR_BUSY);
+    assert(bk_net_get_state() == BK_NET_STATE_RETRYING);
+    assert(bk_board_get_info() != NULL);
+    fail_disconnect = 0;
+    assert(bk7259_robot_stop() == BK_OK);
+    assert(bk_board_get_info() == NULL);
+    fail_connect = 0;
+}
 
 static void test_no_plugin_boot_and_network(void)
 {
@@ -77,6 +107,10 @@ static void test_plugin_callback_boundary(void)
     fail_adapter_init = 0;
     assert(bk7259_robot_start(&net, &adapter) == BK_OK);
     assert(adapter_events == 3);
+    fail_adapter_deinit = 1;
+    assert(bk7259_robot_stop() == BK_ERR_BUSY);
+    assert(bk_board_get_info() != NULL);
+    fail_adapter_deinit = 0;
     assert(bk7259_robot_stop() == BK_OK);
     assert(adapter_events == 7);
 #else
@@ -91,6 +125,7 @@ int main(void)
 #if defined(CONFIG_BK7259_ROBOT_AGORA) && CONFIG_BK7259_ROBOT_AGORA
     test_plugin_callback_boundary();
 #else
+    test_startup_rollback_with_disconnect_failure();
     test_no_plugin_boot_and_network();
     test_plugin_callback_boundary();
 #endif

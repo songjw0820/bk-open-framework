@@ -18,7 +18,11 @@ typedef struct {
 
 static robot_runtime_t g_runtime;
 static int g_started;
+static int g_core_initialized;
+static int g_board_initialized;
+#if BK7259_ROBOT_AGORA_ENABLED
 static int g_agora_initialized;
+#endif
 
 static bk_err_t notify_agora(bk_net_state_t state)
 {
@@ -96,11 +100,15 @@ bk_err_t bk7259_robot_start(const bk_net_config_t *network,
     if (err != BK_OK) {
         return err;
     }
+    g_core_initialized = 1;
     err = bk_board_init(&board);
     if (err != BK_OK) {
-        (void)bk_core_deinit();
+        if (bk_core_deinit() == BK_OK) {
+            g_core_initialized = 0;
+        }
         return err;
     }
+    g_board_initialized = 1;
     g_started = 1;
 
     g_runtime.user_network = *network;
@@ -109,8 +117,8 @@ bk_err_t bk7259_robot_start(const bk_net_config_t *network,
     if (agora != NULL) {
         err = agora->init(agora->context);
         if (err != BK_OK) {
-            (void)bk7259_robot_stop();
-            return err;
+            bk_err_t cleanup_err = bk7259_robot_stop();
+            return cleanup_err == BK_OK ? err : cleanup_err;
         }
         g_agora_initialized = 1;
     }
@@ -120,8 +128,8 @@ bk_err_t bk7259_robot_start(const bk_net_config_t *network,
 
     err = bk_core_start();
     if (err != BK_OK) {
-        (void)bk7259_robot_stop();
-        return err;
+        bk_err_t cleanup_err = bk7259_robot_stop();
+        return cleanup_err == BK_OK ? err : cleanup_err;
     }
     wrapped_network = *network;
     wrapped_network.context = &g_runtime;
@@ -130,17 +138,15 @@ bk_err_t bk7259_robot_start(const bk_net_config_t *network,
     wrapped_network.disconnect = network_disconnect;
     err = bk_net_start(&wrapped_network);
     if (err != BK_OK) {
-        (void)bk7259_robot_stop();
-        return err;
+        bk_err_t cleanup_err = bk7259_robot_stop();
+        return cleanup_err == BK_OK ? err : cleanup_err;
     }
-    g_started = 1;
     return BK_OK;
 }
 
 bk_err_t bk7259_robot_stop(void)
 {
     bk_err_t err;
-    bk_err_t deinit_err;
 
     if (!g_started) {
         return BK_ERR_NOT_STARTED;
@@ -159,17 +165,23 @@ bk_err_t bk7259_robot_stop(void)
         if (err != BK_OK) {
             return err;
         }
+        g_agora_initialized = 0;
     }
 #endif
-    deinit_err = bk_board_deinit();
-    if (deinit_err != BK_OK) {
-        return deinit_err;
+    if (g_core_initialized) {
+        err = bk_core_deinit();
+        if (err != BK_OK) {
+            return err;
+        }
+        g_core_initialized = 0;
     }
-    deinit_err = bk_core_deinit();
-    if (deinit_err != BK_OK) {
-        return deinit_err;
+    if (g_board_initialized) {
+        err = bk_board_deinit();
+        if (err != BK_OK) {
+            return err;
+        }
+        g_board_initialized = 0;
     }
-    g_agora_initialized = 0;
     g_runtime.agora = NULL;
     g_started = 0;
     return BK_OK;
