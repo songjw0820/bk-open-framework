@@ -3,7 +3,9 @@
 #include "bk_ota.h"
 
 static int start_calls;
+static int apply_calls;
 static bk_err_t adapter_result;
+static bk_err_t apply_result;
 
 static bk_err_t ota_start(void *context, const char *url, bk_ota_security_mode_t security_mode)
 {
@@ -14,7 +16,15 @@ static bk_err_t ota_start(void *context, const char *url, bk_ota_security_mode_t
     return adapter_result;
 }
 
-static const bk_ota_adapter_t adapter = {.start = ota_start, .context = NULL};
+static bk_err_t ota_apply(void *context)
+{
+    (void)context;
+    apply_calls++;
+    return apply_result;
+}
+
+static const bk_ota_adapter_t adapter = {.start = ota_start, .apply = ota_apply, .context = NULL};
+static const bk_ota_adapter_t no_start_adapter = {.start = NULL, .apply = NULL, .context = NULL};
 
 static bk_ota_config_t config(void)
 {
@@ -37,6 +47,8 @@ int main(void)
     cfg = config();
     cfg.adapter = NULL;
     assert(bk_ota_start(&cfg) == BK_ERR_NOT_FOUND);
+    cfg.adapter = &no_start_adapter;
+    assert(bk_ota_start(&cfg) == BK_ERR_NOT_SUPPORTED);
     cfg = config();
     cfg.security_mode = BK_OTA_SECURITY_SIGNED;
     assert(bk_ota_start(&cfg) == BK_ERR_NOT_SUPPORTED);
@@ -50,19 +62,39 @@ int main(void)
     assert(bk_ota_finish() == BK_OK);
     assert(bk_ota_get_state() == BK_OTA_STATE_READY);
     assert(bk_ota_finish() == BK_ERR_BUSY);
+    assert(bk_ota_apply() == BK_OK);
+    assert(apply_calls == 1);
+    assert(bk_ota_get_state() == BK_OTA_STATE_APPLYING);
+    assert(bk_ota_reset() == BK_ERR_BUSY);
+    assert(bk_ota_fail(BK_ERR_BUSY) == BK_ERR_BUSY);
+    assert(bk_ota_get_state() == BK_OTA_STATE_FAILED);
+    assert(bk_ota_fail(BK_ERR_NOT_FOUND) == BK_ERR_BUSY);
+    assert(bk_ota_get_state() == BK_OTA_STATE_FAILED);
 
+    assert(bk_ota_retry() == BK_OK);
+    assert(start_calls == 2);
+    assert(bk_ota_get_state() == BK_OTA_STATE_DOWNLOADING);
     assert(bk_ota_reset() == BK_OK);
     assert(bk_ota_get_state() == BK_OTA_STATE_IDLE);
+
     adapter_result = BK_ERR_BUSY;
     assert(bk_ota_start(&cfg) == BK_ERR_BUSY);
+    assert(start_calls == 3);
     assert(bk_ota_get_state() == BK_OTA_STATE_FAILED);
-    assert(bk_ota_retry() == BK_OK);
-    assert(bk_ota_get_state() == BK_OTA_STATE_IDLE);
+    assert(bk_ota_retry() == BK_ERR_BUSY);
+    assert(start_calls == 4);
+    assert(bk_ota_get_state() == BK_OTA_STATE_FAILED);
     adapter_result = BK_OK;
-    assert(bk_ota_start(&cfg) == BK_OK);
+    assert(bk_ota_retry() == BK_OK);
+    assert(start_calls == 5);
+    assert(bk_ota_get_state() == BK_OTA_STATE_DOWNLOADING);
+
     assert(bk_ota_fail(BK_ERR_NOT_FOUND) == BK_ERR_NOT_FOUND);
     assert(bk_ota_get_state() == BK_OTA_STATE_FAILED);
-    assert(bk_ota_retry() == BK_OK);
+    adapter_result = BK_OK;
+    assert(bk_ota_start(&cfg) == BK_OK); /* direct start from FAILED is explicit recovery */
+    assert(start_calls == 6);
+    assert(bk_ota_get_state() == BK_OTA_STATE_DOWNLOADING);
 
     puts("bk_ota_state: ok");
     return 0;

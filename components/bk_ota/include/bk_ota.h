@@ -23,9 +23,11 @@ typedef enum {
 
 typedef bk_err_t (*bk_ota_start_fn)(void *context, const char *url,
                                     bk_ota_security_mode_t security_mode);
+typedef bk_err_t (*bk_ota_apply_fn)(void *context);
 
 typedef struct {
     bk_ota_start_fn start;
+    bk_ota_apply_fn apply;
     void *context;
 } bk_ota_adapter_t;
 
@@ -38,6 +40,8 @@ typedef struct {
 /* Signing keys, rollback policy, and production security remain SDK/product responsibilities. */
 bk_err_t bk_ota_start(const bk_ota_config_t *config);
 bk_err_t bk_ota_finish(void);
+/* Apply is optional. It enters APPLYING only after an adapter apply callback succeeds. */
+bk_err_t bk_ota_apply(void);
 bk_err_t bk_ota_fail(bk_err_t error);
 bk_err_t bk_ota_retry(void);
 bk_err_t bk_ota_reset(void);
