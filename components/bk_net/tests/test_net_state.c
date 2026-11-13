@@ -10,6 +10,8 @@ static bk_err_t provision_cb(void *ctx) { (void)ctx; return BK_OK; }
 static bk_err_t provision_stop_cb(void *ctx) { (void)ctx; provision_stops++; return BK_OK; }
 static bk_err_t lan_publish_cb(void *ctx, const bk_device_record_t *r) { (void)ctx; (void)r; return BK_OK; }
 static bk_err_t lan_stop_cb(void *ctx) { (void)ctx; lan_stops++; return BK_OK; }
+static bk_err_t lan_publish_reentrant_cb(void *ctx, const bk_device_record_t *r) { (void)ctx; (void)r; return bk_net_disconnect(); }
+static bk_err_t provision_reentrant_cb(void *ctx) { (void)ctx; return bk_net_notify_connected(); }
 
 static void test_lifecycle(void) {
     bk_net_config_t cfg = {.connect = connect_cb};
@@ -33,6 +35,7 @@ static void test_reprovision_and_lan(void) {
     assert(bk_provision_start(&provision) == BK_ERR_ALREADY_STARTED);
     assert(bk_lan_start(&lan) == BK_ERR_NOT_STARTED);
     assert(bk_net_notify_connected() == BK_OK);
+    assert(provision_stops == 1);
     assert(bk_lan_start(&lan) == BK_OK);
     assert(bk_lan_publish(&record) == BK_OK);
     assert(bk_net_disconnect() == BK_OK);
@@ -47,7 +50,7 @@ static void test_reprovision_and_lan(void) {
     assert(bk_lan_publish(&record) == BK_ERR_NOT_STARTED);
     assert(bk_provision_start(&provision) == BK_OK);
     assert(bk_provision_stop() == BK_OK);
-    assert(provision_stops == 1);
+    assert(provision_stops == 2);
 }
 
 static void test_stop_restart_and_invalid(void) {
@@ -86,10 +89,22 @@ static void test_reentrancy_and_missing_callbacks(void) {
     assert(bk_provision_start(&(bk_provision_config_t){.start = reentrant_provision}) == BK_ERR_REENTRANT);
 }
 
+static void test_cross_module_reentrancy(void) {
+    bk_device_record_t record = {.id = "dev-r", .name = "Robot"};
+    bk_lan_config_t lan = {.publish = lan_publish_reentrant_cb};
+    assert(bk_lan_start(&lan) == BK_OK);
+    assert(bk_lan_publish(&record) == BK_ERR_REENTRANT);
+    assert(bk_net_get_state() == BK_NET_STATE_CONNECTED);
+    assert(bk_lan_stop() == BK_OK);
+    assert(bk_provision_start(&(bk_provision_config_t){.start = provision_reentrant_cb}) == BK_ERR_REENTRANT);
+    assert(bk_net_get_state() == BK_NET_STATE_CONNECTED);
+}
+
 int main(void) {
     test_lifecycle();
     test_reprovision_and_lan();
     test_stop_restart_and_invalid();
     test_reentrancy_and_missing_callbacks();
+    test_cross_module_reentrancy();
     return 0;
 }
