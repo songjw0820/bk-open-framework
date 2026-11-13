@@ -10,8 +10,9 @@ solution: null
 # This profile intentionally has no bk_solution_ai dependency.
 verification:
   sdk_sha: 584b947920c414230f9909375f008e7d6a2c6c6b
-  ap_cp_build: not_run_toolchain_unavailable
-  all_app_bin: not_run_toolchain_unavailable
+  ap_cp_build: verified
+  all_app_bin: verified
+  all_app_bin_sha256: d47d48978ceb4c09c812c9ad1a2593367cf40a532d20d2b5603ad5a4bd61fdce
 components:
   - bk_core
   - bk_board

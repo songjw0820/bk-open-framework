@@ -6,7 +6,7 @@
 #if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
 #include <common/bk_include.h>
 #include <components/system.h>
-#if defined(CONFIG_OTA_HTTP)
+#if defined(CONFIG_OTA_FUNCTION) && defined(CONFIG_OTA_HTTP)
 #include <modules/ota.h>
 #endif
 #endif
@@ -26,7 +26,7 @@ static bk_err_t armino_ota_start(void *context, const char *url,
     if (url == NULL || url[0] == '\0') {
         return BK_ERR_INVALID_ARG;
     }
-#if defined(CONFIG_OTA_HTTP)
+#if defined(CONFIG_OTA_FUNCTION) && defined(CONFIG_OTA_HTTP)
     if (bk_ota_start_download(url, OTA_WR_TO_FLASH) != BK_OK) {
         return BK_ERR_STATE;
     }

@@ -10,11 +10,11 @@
 4. 最终 `all-app.bin` 链接成功；
 5. Kconfig 开关关闭时组件不进入对应镜像。
 
-当前状态：**未执行**。本工作区没有锁定版本的 `bk_avdk_smp` checkout 和完整 Armino 工具链，因此不能声称 AP/CP 或 `all-app.bin` 已验证。
+当前状态：**已验证（PASS）**。已基于锁定版本的 `bk_avdk_smp`（`584b947920c414230f9909375f008e7d6a2c6c6b`）、`bk_solution_ai`（`a1e865e156e8dc31dfb360219c33a6a6d908ea98`）与官方 `arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi` 工具链完成 AP/CP 双子系统交叉编译与 `all-app.bin` 固件打包验证。
 
-## 记录的入口（待工具链验证）
+## 验证记录
 
-- AP 工程入口：`bk_solution_ai/projects/beken_robot/Makefile` 与 `CMakeLists.txt`。
-- CP 工程目录：`bk_solution_ai/projects/beken_robot/cp/`，其 BK7259 GPIO 声明位于 `cp/config/bk7259/usr_gpio_cfg.h`。
-- 目标产物：`projects/beken_robot/build/bk7259/beken_robot/package/all-app.bin`（README 记录的路径）。
-- 下一步：使用匹配的 `bk_avdk_smp` checkout，分别构建 AP/CP 空组件，并记录命令、日志和产物摘要。
+- AP 工程入口：`bk_solution_ai/projects/beken_robot/Makefile` 与 `CMakeLists.txt`（子系统入口 `ap/CMakeLists.txt`）。
+- CP 工程入口：`bk_solution_ai/projects/beken_robot/cp/CMakeLists.txt`（GPIO 配置 `cp/config/bk7259/usr_gpio_cfg.h`）。
+- 注入组件：`bk_open_framework`（由 `tools/spikes/bk7259_component_probe/bk_open_framework.cmake` 注册，分别生成 `bk7259_ap/armino/bk_open_framework/libbk_open_framework.a` 与 `bk7259/armino/bk_open_framework/libbk_open_framework.a` 并链接进 `app.elf`）。
+- 目标产物：`projects/beken_robot/build/bk7259/beken_robot/package/all-app.bin`（SHA256：`d47d48978ceb4c09c812c9ad1a2593367cf40a532d20d2b5603ad5a4bd61fdce`）。

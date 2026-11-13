@@ -51,9 +51,62 @@ if [ ! -d "$sdk_dir" ]; then
   echo "ERROR: SDK directory does not exist: $sdk_dir" >&2
   exit 5
 fi
-make -C "$sdk_dir" bk7259 PROJECT=beken_robot PROJECT_DIR="$project_dir"
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
+sdk_dir=$(cd "$sdk_dir" && pwd)
+project_dir=$(cd "$project_dir" && pwd)
+
+if [ -z "${BK_TOOLCHAIN_PATH:-}" ]; then
+  for candidate in \
+    "/home/antigravity/toolchains/ccache-bin" \
+    "/home/antigravity/toolchains/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin" \
+    "/opt/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin"; do
+    if [ -x "$candidate/arm-none-eabi-gcc" ]; then
+      export BK_TOOLCHAIN_PATH="$candidate"
+      break
+    fi
+  done
+fi
+
+if [ -d "/tmp/venv/bin" ]; then
+  export PATH="/tmp/venv/bin:$PATH"
+fi
+
+ap_comp_dir="$project_dir/ap/components/bk_open_framework"
+cp_comp_dir="$project_dir/cp/components/bk_open_framework"
+cleanup_staged_components() {
+  rm -rf "$ap_comp_dir" "$cp_comp_dir"
+  rmdir "$project_dir/ap/components" 2>/dev/null || true
+  rmdir "$project_dir/cp/components" 2>/dev/null || true
+}
+trap cleanup_staged_components EXIT
+
+mkdir -p "$ap_comp_dir" "$cp_comp_dir"
+cat > "$ap_comp_dir/CMakeLists.txt" <<EOF
+set(BK_OPEN_FRAMEWORK_ROOT "$repo_root")
+include("$repo_root/tools/spikes/bk7259_component_probe/bk_open_framework.cmake")
+EOF
+cp "$ap_comp_dir/CMakeLists.txt" "$cp_comp_dir/CMakeLists.txt"
+
+ap_lib="$project_dir/build/bk7259/beken_robot/bk7259_ap/armino/bk_open_framework/libbk_open_framework.a"
+cp_lib="$project_dir/build/bk7259/beken_robot/bk7259/armino/bk_open_framework/libbk_open_framework.a"
+if [ ! -d "$(dirname "$ap_lib")" ]; then
+  rm -f "$project_dir/build/bk7259/beken_robot/bk7259_ap/CMakeCache.txt"
+fi
+if [ ! -d "$(dirname "$cp_lib")" ]; then
+  rm -f "$project_dir/build/bk7259/beken_robot/bk7259/CMakeCache.txt"
+fi
+
+"$repo_root/tools/armino_make.sh" -C "$project_dir" bk7259 SDK_DIR="$sdk_dir"
+
+for built_lib in "$ap_lib" "$cp_lib"; do
+  if [ ! -s "$built_lib" ]; then
+    echo "ERROR: framework component library missing or empty: $built_lib" >&2
+    exit 6
+  fi
+done
 if [ ! -s "$artifact" ]; then
   echo "ERROR: build completed without a non-empty expected artifact: $artifact" >&2
   exit 6
 fi
-printf '%s\n' "PASS: AP/CP build and all-app.bin artifact verified"
+printf '%s\n' "AP framework archive: $ap_lib" "CP framework archive: $cp_lib" "PASS: AP/CP build and all-app.bin artifact verified"
