@@ -1,3 +1,4 @@
 .worktrees/
 .bk-deps/
 __pycache__/
+.superpowers/

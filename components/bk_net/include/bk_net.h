@@ -1,6 +1,7 @@
 #ifndef BK_NET_H
 #define BK_NET_H
 
+#include <stdbool.h>
 #include "bk_err.h"
 
 #ifdef __cplusplus
@@ -28,6 +29,7 @@ typedef struct {
     bk_net_action_fn connect;
     bk_net_action_fn disconnect;
     unsigned max_retries;
+    bool async_connect;
 } bk_net_config_t;
 
 #define BK_NET_SSID_MAX_LEN 32U

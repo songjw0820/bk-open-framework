@@ -62,16 +62,20 @@ bk_err_t bk_core_start(void)
 
 bk_err_t bk_core_deinit(void)
 {
+    bk_core_lock();
     if (!g_bk_core.initialized) {
+        bk_core_unlock();
         return BK_ERR_NOT_INITIALIZED;
     }
     if (g_bk_core.publishing) {
+        bk_core_unlock();
         return BK_ERR_BUSY;
     }
     g_bk_core.initialized = 0;
     g_bk_core.started = 0;
     g_bk_core.max_subscribers = 0U;
     g_bk_core.subscription_count = 0U;
+    bk_core_unlock();
 #if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
     if (g_bk_core.lock != NULL) {
         (void)rtos_deinit_mutex(&g_bk_core.lock);

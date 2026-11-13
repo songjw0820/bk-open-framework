@@ -391,9 +391,19 @@ bk_err_t bk_peripheral_set_led(bk_led_state_t state)
         return BK_ERR_INVALID_ARG;
     }
     g_led_state = state;
+#if (defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE))
+#if defined(BK7259_ROBOT_LED_GPIO)
+    return bk_peripheral_gpio_set_level(
+        BK7259_ROBOT_LED_GPIO,
+        state == BK_LED_STATE_OFF ? 0U : 1U);
+#else
+    return BK_OK;
+#endif
+#else
     return bk_peripheral_gpio_set_level(
         BK_PERIPHERAL_ROBOT_LED_PIN,
         state == BK_LED_STATE_OFF ? 0U : 1U);
+#endif
 }
 
 bk_led_state_t bk_peripheral_get_led(void)

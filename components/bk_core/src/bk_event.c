@@ -9,10 +9,11 @@ bk_err_t bk_event_subscribe(bk_event_id_t id, bk_event_handler_t handler, void *
     if (handler == NULL) {
         return BK_ERR_INVALID_ARG;
     }
+    bk_core_lock();
     if (!g_bk_core.initialized) {
+        bk_core_unlock();
         return BK_ERR_NOT_INITIALIZED;
     }
-    bk_core_lock();
     for (i = 0U; i < g_bk_core.subscription_count; ++i) {
         if (g_bk_core.subscriptions[i].id == id &&
             g_bk_core.subscriptions[i].handler == handler &&
@@ -44,13 +45,15 @@ bk_err_t bk_event_publish(const bk_event_t *event)
     if (event == NULL || (event->size > 0U && event->data == NULL)) {
         return BK_ERR_INVALID_ARG;
     }
+    bk_core_lock();
     if (!g_bk_core.initialized) {
+        bk_core_unlock();
         return BK_ERR_NOT_INITIALIZED;
     }
     if (!g_bk_core.started) {
+        bk_core_unlock();
         return BK_ERR_NOT_STARTED;
     }
-    bk_core_lock();
     if (g_bk_core.publishing) {
         bk_core_unlock();
         return BK_ERR_REENTRANT;

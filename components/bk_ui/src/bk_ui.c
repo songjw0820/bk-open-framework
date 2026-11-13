@@ -8,7 +8,7 @@ extern void lv_vendor_start(void);
 extern void lv_vendor_stop(void);
 extern void lv_vendor_disp_lock(void);
 extern void lv_vendor_disp_unlock(void);
-#if defined(CONFIG_BK_SMART_CONFIG)
+#if defined(CONFIG_BK_KEY_APP)
 extern void bk_key_app_notify_ui_nav(uint8_t event);
 #endif
 #endif
@@ -91,7 +91,7 @@ static bk_err_t armino_ui_input(void *context, const bk_ui_input_event_t *event)
     if (event == NULL) {
         return BK_ERR_INVALID_ARG;
     }
-#if defined(CONFIG_BK_SMART_CONFIG)
+#if defined(CONFIG_BK_KEY_APP)
     bk_key_app_notify_ui_nav((uint8_t)event->type);
 #endif
     return BK_OK;

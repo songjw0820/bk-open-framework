@@ -17,4 +17,4 @@
 - AP 工程入口：`bk_solution_ai/projects/beken_robot/Makefile` 与 `CMakeLists.txt`（子系统入口 `ap/CMakeLists.txt`）。
 - CP 工程入口：`bk_solution_ai/projects/beken_robot/cp/CMakeLists.txt`（GPIO 配置 `cp/config/bk7259/usr_gpio_cfg.h`）。
 - 注入组件：`bk_open_framework`（由 `tools/spikes/bk7259_component_probe/bk_open_framework.cmake` 注册，分别生成 `bk7259_ap/armino/bk_open_framework/libbk_open_framework.a` 与 `bk7259/armino/bk_open_framework/libbk_open_framework.a` 并链接进 `app.elf`）。
-- 目标产物：`projects/beken_robot/build/bk7259/beken_robot/package/all-app.bin`（SHA256：`d47d48978ceb4c09c812c9ad1a2593367cf40a532d20d2b5603ad5a4bd61fdce`）。
+- 目标产物：`projects/beken_robot/build/bk7259/beken_robot/package/all-app.bin`（SHA256：`ba95ad08219eaea0498296556774c7699cc8d3f01c96064023bf23cdfd7e4501`）。

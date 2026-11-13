@@ -67,19 +67,11 @@ if [ "$use_docker" -eq 1 ]; then
     "$repo_root/dbuild.sh" make bk7259
 else
   if [ -z "${BK_TOOLCHAIN_PATH:-}" ]; then
-    for candidate in \
-      "/home/antigravity/toolchains/ccache-bin" \
-      "/home/antigravity/toolchains/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin" \
-      "/opt/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin"; do
-      if [ -x "$candidate/arm-none-eabi-gcc" ]; then
-        export BK_TOOLCHAIN_PATH="$candidate"
-        break
-      fi
-    done
-  fi
-
-  if [ -d "/tmp/venv/bin" ]; then
-    export PATH="/tmp/venv/bin:$PATH"
+    if [ -x "/opt/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-gcc" ]; then
+      export BK_TOOLCHAIN_PATH="/opt/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin"
+    elif command -v arm-none-eabi-gcc >/dev/null 2>&1; then
+      export BK_TOOLCHAIN_PATH="$(dirname "$(command -v arm-none-eabi-gcc)")"
+    fi
   fi
 
   ap_comp_dir="$project_dir/ap/components/bk_open_framework"
@@ -120,7 +112,6 @@ done
 nm_tool=""
 for nm_candidate in \
   "${BK_TOOLCHAIN_PATH:-}/arm-none-eabi-nm" \
-  "/home/antigravity/toolchains/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-nm" \
   "/opt/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-nm" \
   "$(command -v arm-none-eabi-nm 2>/dev/null || true)"; do
   if [ -n "$nm_candidate" ] && [ -x "$nm_candidate" ]; then

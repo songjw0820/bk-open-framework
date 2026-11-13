@@ -76,8 +76,6 @@ int main(void)
     assert(bk_media_deinit() == BK_ERR_BUSY);
 
     assert(bk_media_stop() == BK_ERR_NOT_SUPPORTED);
-    s_media_cleanup:
-    (void)0;
     puts("test_media: PASS");
     return 0;
 }

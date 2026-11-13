@@ -8,6 +8,8 @@
 #include <components/event.h>
 #include <components/netif.h>
 #include <modules/wifi.h>
+#include <os/os.h>
+static beken_mutex_t s_net_lock;
 #endif
 
 static bk_net_state_t state = BK_NET_STATE_INITIAL;
@@ -17,6 +19,27 @@ static int configured;
 static int in_callback;
 static char s_ssid[BK_NET_SSID_MAX_LEN + 1U];
 static char s_password[BK_NET_PASSWORD_MAX_LEN + 1U];
+
+void bk_net_lock(void)
+{
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    if (s_net_lock == NULL) {
+        (void)rtos_init_mutex(&s_net_lock);
+    }
+    if (s_net_lock != NULL) {
+        (void)rtos_lock_mutex(&s_net_lock);
+    }
+#endif
+}
+
+void bk_net_unlock(void)
+{
+#if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
+    if (s_net_lock != NULL) {
+        (void)rtos_unlock_mutex(&s_net_lock);
+    }
+#endif
+}
 
 static bk_err_t host_mock_net_action(void *context)
 {
@@ -30,6 +53,7 @@ static const bk_net_config_t g_host_mock_net_config = {
     .connect = host_mock_net_action,
     .disconnect = host_mock_net_action,
     .max_retries = 3U,
+    .async_connect = false,
 };
 
 #if defined(BEKEN_PLATFORM) || defined(CONFIG_CMAKE)
@@ -97,6 +121,7 @@ static const bk_net_config_t g_armino_net_config = {
     .connect = armino_net_connect,
     .disconnect = armino_net_disconnect,
     .max_retries = 3U,
+    .async_connect = true,
 };
 #endif
 
@@ -195,84 +220,174 @@ void bk_net_callback_leave(void) { in_callback = 0; }
 int bk_net_callback_active(void) { return in_callback; }
 
 static int active(void) { return state != BK_NET_STATE_INITIAL && state != BK_NET_STATE_STOPPED; }
+
 bk_err_t bk_net_start(const bk_net_config_t *new_config) {
     bk_err_t err;
-    if (in_callback) return BK_ERR_REENTRANT;
+    bk_net_action_fn start_fn;
+    bk_net_action_fn connect_fn;
+    void *ctx;
+    bool async_mode;
+
     if (!new_config) return BK_ERR_INVALID_ARG;
-    if (active()) return BK_ERR_ALREADY_STARTED;
-    if (!new_config->connect) return BK_ERR_NOT_FOUND;
+    bk_net_lock();
+    if (in_callback) { bk_net_unlock(); return BK_ERR_REENTRANT; }
+    if (active()) { bk_net_unlock(); return BK_ERR_ALREADY_STARTED; }
+    if (!new_config->connect) { bk_net_unlock(); return BK_ERR_NOT_FOUND; }
     config = *new_config; configured = 1; retries = 0; state = BK_NET_STATE_STARTING;
-    if (config.start) {
-        bk_net_callback_enter(); err = config.start(config.context); bk_net_callback_leave();
-        if (err != BK_OK) { state = BK_NET_STATE_DISCONNECTED; return err; }
+    start_fn = config.start;
+    connect_fn = config.connect;
+    ctx = config.context;
+    async_mode = config.async_connect;
+    bk_net_unlock();
+
+    if (start_fn) {
+        bk_net_callback_enter(); err = start_fn(ctx); bk_net_callback_leave();
+        if (err != BK_OK) {
+            bk_net_lock(); state = BK_NET_STATE_DISCONNECTED; bk_net_unlock();
+            return err;
+        }
     }
+    bk_net_lock();
     state = BK_NET_STATE_CONNECTING;
-    bk_net_callback_enter(); err = config.connect(config.context); bk_net_callback_leave();
-    if (err == BK_OK) { state = BK_NET_STATE_CONNECTED; retries = 0; }
-    else state = BK_NET_STATE_RETRYING;
+    bk_net_unlock();
+
+    bk_net_callback_enter(); err = connect_fn(ctx); bk_net_callback_leave();
+    bk_net_lock();
+    if (err == BK_OK) {
+        if (!async_mode) {
+            state = BK_NET_STATE_CONNECTED;
+            retries = 0;
+        }
+    } else {
+        state = BK_NET_STATE_RETRYING;
+    }
+    bk_net_unlock();
     return err;
 }
 
-bk_net_state_t bk_net_get_state(void) { return state; }
+bk_net_state_t bk_net_get_state(void) {
+    bk_net_state_t current;
+    bk_net_lock();
+    current = state;
+    bk_net_unlock();
+    return current;
+}
 
 bk_err_t bk_net_notify_connected(void) {
-    if (in_callback) return BK_ERR_REENTRANT;
-    if (!active()) return BK_ERR_NOT_STARTED;
-    if (state != BK_NET_STATE_CONNECTING && state != BK_NET_STATE_RETRYING && state != BK_NET_STATE_PROVISIONING)
+    bk_net_lock();
+    if (in_callback) { bk_net_unlock(); return BK_ERR_REENTRANT; }
+    if (!active()) { bk_net_unlock(); return BK_ERR_NOT_STARTED; }
+    if (state != BK_NET_STATE_CONNECTING && state != BK_NET_STATE_RETRYING && state != BK_NET_STATE_PROVISIONING) {
+        bk_net_unlock();
         return BK_ERR_BUSY;
-    if (bk_provision_reset_for_net_connected() != BK_OK) return BK_ERR_BUSY;
-    state = BK_NET_STATE_CONNECTED; retries = 0; return BK_OK;
+    }
+    if (bk_provision_reset_for_net_connected() != BK_OK) {
+        bk_net_unlock();
+        return BK_ERR_BUSY;
+    }
+    state = BK_NET_STATE_CONNECTED; retries = 0;
+    bk_net_unlock();
+    return BK_OK;
 }
 
 bk_err_t bk_net_notify_disconnected(void) {
-    if (in_callback) return BK_ERR_REENTRANT;
-    if (!active()) return BK_ERR_NOT_STARTED;
-    if (state != BK_NET_STATE_CONNECTED && state != BK_NET_STATE_CONNECTING && state != BK_NET_STATE_RETRYING && state != BK_NET_STATE_PROVISIONING)
-        return state == BK_NET_STATE_DISCONNECTED ? BK_OK : BK_ERR_BUSY;
-    bk_lan_reset_for_net_stop(); bk_provision_reset_for_net_stop(); state = BK_NET_STATE_DISCONNECTED; return BK_OK;
+    bk_net_lock();
+    if (in_callback) { bk_net_unlock(); return BK_ERR_REENTRANT; }
+    if (!active()) { bk_net_unlock(); return BK_ERR_NOT_STARTED; }
+    if (state != BK_NET_STATE_CONNECTED && state != BK_NET_STATE_CONNECTING && state != BK_NET_STATE_RETRYING && state != BK_NET_STATE_PROVISIONING) {
+        bk_err_t res = state == BK_NET_STATE_DISCONNECTED ? BK_OK : BK_ERR_BUSY;
+        bk_net_unlock();
+        return res;
+    }
+    bk_lan_reset_for_net_stop(); bk_provision_reset_for_net_stop(); state = BK_NET_STATE_DISCONNECTED;
+    bk_net_unlock();
+    return BK_OK;
 }
 
 bk_err_t bk_net_disconnect(void) {
     bk_err_t err;
-    if (in_callback) return BK_ERR_REENTRANT;
-    if (!active()) return BK_ERR_NOT_STARTED;
-    if (state == BK_NET_STATE_DISCONNECTED) return BK_OK;
-    if (config.disconnect) { bk_net_callback_enter(); err = config.disconnect(config.context); bk_net_callback_leave(); if (err != BK_OK) return err; }
+    bk_net_action_fn disconnect_fn;
+    void *ctx;
+
+    bk_net_lock();
+    if (in_callback) { bk_net_unlock(); return BK_ERR_REENTRANT; }
+    if (!active()) { bk_net_unlock(); return BK_ERR_NOT_STARTED; }
+    if (state == BK_NET_STATE_DISCONNECTED) { bk_net_unlock(); return BK_OK; }
+    disconnect_fn = config.disconnect;
+    ctx = config.context;
+    bk_net_unlock();
+
+    if (disconnect_fn) {
+        bk_net_callback_enter(); err = disconnect_fn(ctx); bk_net_callback_leave();
+        if (err != BK_OK) return err;
+    }
     return bk_net_notify_disconnected();
 }
 
 bk_err_t bk_net_retry(void) {
     bk_err_t err; unsigned limit;
-    if (in_callback) return BK_ERR_REENTRANT;
-    if (!active()) return BK_ERR_NOT_STARTED;
-    if (state != BK_NET_STATE_DISCONNECTED && state != BK_NET_STATE_RETRYING) return BK_ERR_BUSY;
+    bk_net_action_fn connect_fn;
+    void *ctx;
+    bool async_mode;
+
+    bk_net_lock();
+    if (in_callback) { bk_net_unlock(); return BK_ERR_REENTRANT; }
+    if (!active()) { bk_net_unlock(); return BK_ERR_NOT_STARTED; }
+    if (state != BK_NET_STATE_DISCONNECTED && state != BK_NET_STATE_RETRYING) { bk_net_unlock(); return BK_ERR_BUSY; }
     limit = config.max_retries ? config.max_retries : 3U;
-    if (retries >= limit) return BK_ERR_LIMIT;
+    if (retries >= limit) { bk_net_unlock(); return BK_ERR_LIMIT; }
     retries++; state = BK_NET_STATE_RETRYING;
-    bk_net_callback_enter(); err = config.connect(config.context); bk_net_callback_leave();
-    if (err == BK_OK) { state = BK_NET_STATE_CONNECTED; retries = 0; }
+    connect_fn = config.connect;
+    ctx = config.context;
+    async_mode = config.async_connect;
+    bk_net_unlock();
+
+    bk_net_callback_enter(); err = connect_fn(ctx); bk_net_callback_leave();
+    bk_net_lock();
+    if (err == BK_OK && !async_mode) { state = BK_NET_STATE_CONNECTED; retries = 0; }
+    bk_net_unlock();
     return err;
 }
 
 bk_err_t bk_net_reprovision(void) {
-    if (in_callback) return BK_ERR_REENTRANT;
-    if (!active()) return BK_ERR_NOT_STARTED;
-    if (state != BK_NET_STATE_CONNECTED && state != BK_NET_STATE_DISCONNECTED) return BK_ERR_BUSY;
-    bk_lan_reset_for_net_stop(); state = BK_NET_STATE_PROVISIONING; return BK_OK;
+    bk_net_lock();
+    if (in_callback) { bk_net_unlock(); return BK_ERR_REENTRANT; }
+    if (!active()) { bk_net_unlock(); return BK_ERR_NOT_STARTED; }
+    if (state != BK_NET_STATE_CONNECTED && state != BK_NET_STATE_DISCONNECTED) { bk_net_unlock(); return BK_ERR_BUSY; }
+    bk_lan_reset_for_net_stop(); state = BK_NET_STATE_PROVISIONING;
+    bk_net_unlock();
+    return BK_OK;
 }
 
 bk_err_t bk_net_stop(void) {
     bk_err_t err;
-    if (in_callback) return BK_ERR_REENTRANT;
-    if (!active()) return BK_ERR_NOT_STARTED;
-    if (config.disconnect) { bk_net_callback_enter(); err = config.disconnect(config.context); bk_net_callback_leave(); if (err != BK_OK) return err; }
-    bk_lan_reset_for_net_stop(); bk_provision_reset_for_net_stop(); state = BK_NET_STATE_STOPPED; return BK_OK;
+    bk_net_action_fn disconnect_fn;
+    void *ctx;
+
+    bk_net_lock();
+    if (in_callback) { bk_net_unlock(); return BK_ERR_REENTRANT; }
+    if (!active()) { bk_net_unlock(); return BK_ERR_NOT_STARTED; }
+    disconnect_fn = config.disconnect;
+    ctx = config.context;
+    bk_net_unlock();
+
+    if (disconnect_fn) {
+        bk_net_callback_enter(); err = disconnect_fn(ctx); bk_net_callback_leave();
+        if (err != BK_OK) return err;
+    }
+    bk_net_lock();
+    bk_lan_reset_for_net_stop(); bk_provision_reset_for_net_stop(); state = BK_NET_STATE_STOPPED;
+    bk_net_unlock();
+    return BK_OK;
 }
 
 bk_err_t bk_net_restart(void) {
     bk_net_config_t saved; bk_err_t err;
-    if (in_callback) return BK_ERR_REENTRANT;
-    if (!configured) return BK_ERR_NOT_STARTED;
+    bk_net_lock();
+    if (in_callback) { bk_net_unlock(); return BK_ERR_REENTRANT; }
+    if (!configured) { bk_net_unlock(); return BK_ERR_NOT_STARTED; }
+    saved = config;
+    bk_net_unlock();
     if (active()) { err = bk_net_stop(); if (err != BK_OK) return err; }
-    saved = config; return bk_net_start(&saved);
+    return bk_net_start(&saved);
 }

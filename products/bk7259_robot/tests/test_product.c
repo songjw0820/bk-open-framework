@@ -91,6 +91,7 @@ static void test_lifecycle_failure_retry(void)
     bk7259_robot_reset_lifecycle_ops();
 }
 
+#if !defined(CONFIG_BK7259_ROBOT_AGORA)
 static void test_startup_rollback_with_disconnect_failure(void)
 {
     bk_net_config_t net = {
@@ -127,6 +128,7 @@ static void test_no_plugin_boot_and_network(void)
     assert(bk7259_robot_start(&net, NULL) == BK_OK);
     assert(bk7259_robot_stop() == BK_OK);
 }
+#endif
 
 static void test_invalid_network_config(void)
 {

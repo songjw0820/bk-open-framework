@@ -33,7 +33,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             print(f"FAIL {result.message}", file=sys.stderr)
             return 1
         print(result.message)
-    print("doctor: OK" if args.dry_run or root.exists() else "doctor: OK")
+    print("doctor: OK")
     return 0
 
 

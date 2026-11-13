@@ -1,6 +1,7 @@
 #ifndef BK_OTA_H
 #define BK_OTA_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "bk_err.h"
 
@@ -32,6 +33,7 @@ typedef struct {
     bk_ota_start_fn start;
     bk_ota_apply_fn apply;
     void *context;
+    bool sync_download;
 } bk_ota_adapter_t;
 
 typedef struct {

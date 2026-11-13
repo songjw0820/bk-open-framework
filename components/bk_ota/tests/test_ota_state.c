@@ -113,6 +113,30 @@ int main(void)
         assert(bk_ota_start(&mock_cfg) == BK_OK);
         assert(bk_ota_finish() == BK_OK);
         assert(bk_ota_apply() == BK_OK);
+        assert(bk_ota_fail(BK_ERR_BUSY) == BK_ERR_BUSY);
+        assert(bk_ota_reset() == BK_OK);
+    }
+
+    {
+        bk_ota_adapter_t sync_adapter = {
+            .start = ota_start,
+            .apply = ota_apply,
+            .context = NULL,
+            .sync_download = true,
+        };
+        bk_ota_config_t sync_cfg = {
+            .url = "https://ota.beken.example/app_pack.rbl",
+            .security_mode = BK_OTA_SECURITY_NONE,
+            .adapter = &sync_adapter,
+        };
+        adapter_result = BK_OK;
+        apply_result = BK_OK;
+        assert(bk_ota_start(&sync_cfg) == BK_OK);
+        assert(bk_ota_get_state() == BK_OTA_STATE_READY);
+        assert(bk_ota_apply() == BK_OK);
+        assert(bk_ota_get_state() == BK_OTA_STATE_APPLYING);
+        assert(bk_ota_fail(BK_ERR_BUSY) == BK_ERR_BUSY);
+        assert(bk_ota_reset() == BK_OK);
     }
 
     puts("bk_ota_state: ok");

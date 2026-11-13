@@ -148,7 +148,7 @@ bk_err_t bk_ota_start(const bk_ota_config_t *config)
     s_ota.adapter = *adapter;
     result = adapter->start(adapter->context, config->url, config->security_mode);
     if (result == BK_OK) {
-        s_ota.state = BK_OTA_STATE_DOWNLOADING;
+        s_ota.state = s_ota.adapter.sync_download ? BK_OTA_STATE_READY : BK_OTA_STATE_DOWNLOADING;
         s_ota.last_error = BK_OK;
     } else {
         s_ota.state = BK_OTA_STATE_FAILED;
@@ -196,7 +196,7 @@ bk_err_t bk_ota_retry(void)
     result = s_ota.adapter.start(s_ota.adapter.context, s_ota.config.url,
                                   s_ota.config.security_mode);
     if (result == BK_OK) {
-        s_ota.state = BK_OTA_STATE_DOWNLOADING;
+        s_ota.state = s_ota.adapter.sync_download ? BK_OTA_STATE_READY : BK_OTA_STATE_DOWNLOADING;
         s_ota.last_error = BK_OK;
     } else {
         s_ota.last_error = result;

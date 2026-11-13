@@ -15,7 +15,7 @@ verification:
   solution_sha: a1e865e156e8dc31dfb360219c33a6a6d908ea98
   ap_cp_build: verified
   all_app_bin: verified
-  all_app_bin_sha256: d47d48978ceb4c09c812c9ad1a2593367cf40a532d20d2b5603ad5a4bd61fdce
+  all_app_bin_sha256: ba95ad08219eaea0498296556774c7699cc8d3f01c96064023bf23cdfd7e4501
 components:
   - bk_core
   - bk_board

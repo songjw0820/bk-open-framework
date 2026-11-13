@@ -137,6 +137,15 @@ static void test_credentials_ip_and_host_mocks(void) {
     assert(bk_net_stop() == BK_OK);
 }
 
+static void test_async_connect(void) {
+    bk_net_config_t async_cfg = {.connect = connect_cb, .async_connect = true};
+    assert(bk_net_start(&async_cfg) == BK_OK);
+    assert(bk_net_get_state() == BK_NET_STATE_CONNECTING);
+    assert(bk_net_notify_connected() == BK_OK);
+    assert(bk_net_get_state() == BK_NET_STATE_CONNECTED);
+    assert(bk_net_stop() == BK_OK);
+}
+
 int main(void) {
     test_lifecycle();
     test_reprovision_and_lan();
@@ -144,5 +153,6 @@ int main(void) {
     test_reentrancy_and_missing_callbacks();
     test_cross_module_reentrancy();
     test_credentials_ip_and_host_mocks();
+    test_async_connect();
     return 0;
 }
