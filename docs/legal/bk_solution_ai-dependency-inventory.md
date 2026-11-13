@@ -23,6 +23,7 @@
 | 生成字体资源 | `projects/beken_robot/ap/beken_generated/fonts/*.c` | robot profile 专用，字体来源和再分发权待核对 |
 | 提示音和媒体资源 | `components/bk_app_event/*_array.h`、`projects/beken_robot/ap/include/lcd_image.h` | robot profile 专用，资源来源和再分发权待核对 |
 | NPU/端侧模型代码和资源 | `components/avdk_nn_module/`、`projects/beken_robot/ap/beken_generated/` | robot profile 专用，模型许可证和权重来源待核对 |
+| 示例安全启动 EC256 私钥 | `projects/secureboot_ai/config/key/root_ec256_privkey.pem`、`projects/secureboot_headset_lp/config/key/root_ec256_privkey.pem` | 公开仓库测试密钥，禁止复制到框架仓库，量产必须外部注入独立密钥 |
 
 当前本地 checkout 没有可确认的 Agora 二进制文件名、版本号或 NOTICE 文件，因此这些字段保留为待核对状态，不把类别名称当成已完成的法律审计。
 

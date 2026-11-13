@@ -4,8 +4,8 @@
 
 第一阶段只支持 BK7259 的 `bk7259_robot` 板卡和 `minimal`/`robot` 两种 profile，锁定：
 
-- Armino SMP (`bekencorp/bk_avdk_smp`) `release/v4.0.1.11`（commit `584b947920c414230f9909375f008e7d6a2c6c6b`）
-- `bekencorp/bk_solution_ai` `release/v4.0.1.11`（commit `a1e865e156e8dc31dfb360219c33a6a6d908ea98`）
+- Armino SMP (`bekencorp/bk_avdk_smp`) `release/v4.0.1.13`（commit `bd91e8b93a1d46420d613fabe4a6252601431844`）
+- `bekencorp/bk_solution_ai` `release/v4.0.1.13`（commit `08d2093a180d6a6a44a92659c4f457e182a940c7`）
 
 仓库结构包括：
 

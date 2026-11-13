@@ -4,4 +4,5 @@ menuconfig BK_OTA
     help
       Enable the chip-independent OTA adapter boundary.
       Signing keys, rollback policy, and production security are provided by
-      the SDK or product integration.
+      the SDK or product integration. Never reuse sample private keys from
+      upstream bk_solution_ai (e.g. root_ec256_privkey.pem) in production.

@@ -4,12 +4,12 @@ board: bk7259_robot
 profile: minimal
 sdk:
   repository: https://github.com/bekencorp/bk_avdk_smp.git
-  ref: release/v4.0.1.11
-  sha: 584b947920c414230f9909375f008e7d6a2c6c6b
+  ref: release/v4.0.1.13
+  sha: bd91e8b93a1d46420d613fabe4a6252601431844
 solution: null
 # This profile intentionally has no bk_solution_ai dependency.
 verification:
-  sdk_sha: 584b947920c414230f9909375f008e7d6a2c6c6b
+  sdk_sha: bd91e8b93a1d46420d613fabe4a6252601431844
   ap_cp_build: not_run_no_minimal_project
   all_app_bin: not_run_no_minimal_project
 components:

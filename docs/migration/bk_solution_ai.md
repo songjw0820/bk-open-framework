@@ -5,7 +5,7 @@
 ## 外部路径
 
 - 依赖根目录由 `./tools/bk env --profile bk7259_robot --root <deps>` 输出。
-- SDK 路径为 `<deps>/bk_avdk_smp`，由 `platforms/bk7259_robot.yaml` 锁定 `release/v4.0.1.11` 与 SHA。
+- SDK 路径为 `<deps>/bk_avdk_smp`，由 `platforms/bk7259_robot.yaml` 锁定 `release/v4.0.1.13` 与 SHA。
 - solution 路径为 `<deps>/bk_solution_ai`，由同一清单锁定匹配 ref 与 SHA。
 - 框架产品入口位于 `products/bk7259_robot/`。公共组件位于 `components/`，不从 solution 目录复制实现。
 

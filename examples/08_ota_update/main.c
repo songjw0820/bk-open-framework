@@ -44,7 +44,7 @@ int main(void)
         .adapter = ota_adapter,
     };
     bk_ota_config_t valid_cfg = {
-        .url = "https://ota.example.com/bk7259/v4.0.1.11/app_pack.rbl",
+        .url = "https://ota.example.com/bk7259/v4.0.1.13/app_pack.rbl",
         .security_mode = BK_OTA_SECURITY_SDK,
         .adapter = ota_adapter,
     };

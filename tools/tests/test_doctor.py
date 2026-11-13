@@ -31,7 +31,7 @@ def test_absent_checkout_is_reported(tmp_path):
 def test_wrong_ref_and_sha_are_reported(tmp_path):
     repo = tmp_path / "sdk"
     actual_sha = make_repo(repo, "main")
-    dependency = {"repository": "unused", "ref": "release/v4.0.1.11", "sha": "0" * 40}
+    dependency = {"repository": "unused", "ref": "release/v4.0.1.13", "sha": "0" * 40}
     result = inspect_checkout(repo, dependency)
     assert not result.ok
     assert "ref" in result.message or "SHA" in result.message
@@ -40,8 +40,8 @@ def test_wrong_ref_and_sha_are_reported(tmp_path):
 
 def test_correct_ref_with_wrong_sha_reports_sha_mismatch(tmp_path):
     repo = tmp_path / "sdk"
-    actual_sha = make_repo(repo, "release/v4.0.1.11")
-    dependency = {"repository": "unused", "ref": "release/v4.0.1.11", "sha": "0" * 40}
+    actual_sha = make_repo(repo, "release/v4.0.1.13")
+    dependency = {"repository": "unused", "ref": "release/v4.0.1.13", "sha": "0" * 40}
     result = inspect_checkout(repo, dependency)
     assert not result.ok
     assert "SHA 不匹配" in result.message
@@ -51,10 +51,10 @@ def test_correct_ref_with_wrong_sha_reports_sha_mismatch(tmp_path):
 def test_valid_paired_checkouts_are_reported(tmp_path):
     sdk = tmp_path / "bk_avdk_smp"
     solution = tmp_path / "bk_solution_ai"
-    sdk_sha = make_repo(sdk, "release/v4.0.1.11")
-    solution_sha = make_repo(solution, "release/v4.0.1.11")
-    sdk_dep = {"repository": "unused", "ref": "release/v4.0.1.11", "sha": sdk_sha}
-    solution_dep = {"repository": "unused", "ref": "release/v4.0.1.11", "sha": solution_sha}
+    sdk_sha = make_repo(sdk, "release/v4.0.1.13")
+    solution_sha = make_repo(solution, "release/v4.0.1.13")
+    sdk_dep = {"repository": "unused", "ref": "release/v4.0.1.13", "sha": sdk_sha}
+    solution_dep = {"repository": "unused", "ref": "release/v4.0.1.13", "sha": solution_sha}
     assert inspect_checkout(sdk, sdk_dep).ok
     assert inspect_checkout(solution, solution_dep).ok
 
@@ -62,9 +62,9 @@ def test_valid_paired_checkouts_are_reported(tmp_path):
 def test_detached_tag_checkout_is_accepted(tmp_path):
     repo = tmp_path / "bk_avdk_smp"
     sha = make_repo(repo, "main")
-    git(repo, "-c", "user.name=Test", "-c", "user.email=test@example.com", "tag", "-a", "release/v4.0.1.11", "-m", "release")
-    git(repo, "checkout", "-q", "--detach", "release/v4.0.1.11")
-    dependency = {"repository": "unused", "ref": "release/v4.0.1.11", "sha": sha}
+    git(repo, "-c", "user.name=Test", "-c", "user.email=test@example.com", "tag", "-a", "release/v4.0.1.13", "-m", "release")
+    git(repo, "checkout", "-q", "--detach", "release/v4.0.1.13")
+    dependency = {"repository": "unused", "ref": "release/v4.0.1.13", "sha": sha}
     result = inspect_checkout(repo, dependency)
     assert result.ok, result.message
 
@@ -73,7 +73,7 @@ def test_detached_head_not_on_locked_tag_is_rejected(tmp_path):
     repo = tmp_path / "bk_avdk_smp"
     sha = make_repo(repo, "main")
     git(repo, "checkout", "-q", "--detach", "HEAD")
-    dependency = {"repository": "unused", "ref": "release/v4.0.1.11", "sha": sha}
+    dependency = {"repository": "unused", "ref": "release/v4.0.1.13", "sha": sha}
     result = inspect_checkout(repo, dependency)
     assert not result.ok
     assert "detached HEAD" in result.message

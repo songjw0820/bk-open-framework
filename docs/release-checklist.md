@@ -5,8 +5,8 @@
 ## 版本和 upstream pair
 
 - 框架版本：待发布 `v0.1.0`
-- SDK upstream pair：`bekencorp/bk_avdk_smp`，`release/v4.0.1.11`，`584b947920c414230f9909375f008e7d6a2c6c6b`
-- solution upstream pair：`bekencorp/bk_solution_ai`，`release/v4.0.1.11`，`a1e865e156e8dc31dfb360219c33a6a6d908ea98`
+- SDK upstream pair：`bekencorp/bk_avdk_smp`，`release/v4.0.1.13`，`bd91e8b93a1d46420d613fabe4a6252601431844`
+- solution upstream pair：`bekencorp/bk_solution_ai`，`release/v4.0.1.13`，`08d2093a180d6a6a44a92659c4f457e182a940c7`
 - Tag 规则：框架 tag 使用 `v0.1.0`，发布记录必须同时写入上述 upstream ref 和 40 位 SHA。SDK 与 solution 的 ref 不一致时不得发布。
 - 当前 tag 状态：`PENDING`，未执行创建或推送。
 
@@ -38,7 +38,11 @@
 | Robot reference host | 无插件和可选插件 host 测试均通过 | PASS | CI robot-host job |
 | 组合启动 | 网络、媒体、UI、OTA、外设生命周期日志无未处理错误 | PENDING | 待目标固件日志 |
 | Optional Agora/AI | 明确记录外部 SDK ref、许可证审批、配置和端到端会话日志 | PENDING | 可选插件未执行 |
-| Release artifact | SDK 原生 AP/CP 构建、`all-app.bin` SHA256 和配置快照 | PASS | `./tools/sdk_release_gate.sh` (`all-app.bin` SHA256: `ba95ad08219eaea0498296556774c7699cc8d3f01c96064023bf23cdfd7e4501`) |
+| Release artifact | SDK 原生 AP/CP 构建、`all-app.bin` SHA256 和配置快照 | PENDING | 需基于 `release/v4.0.1.13` 重跑 `./tools/sdk_release_gate.sh`（原 `v4.0.1.11` 基线 `ba95ad08...` 已过期） |
+
+## 安全基线要求
+
+- **严禁复用上游示例私钥**：上游 `bk_solution_ai` 中的 `projects/secureboot_ai/config/key/root_ec256_privkey.pem` 与 `projects/secureboot_headset_lp/config/key/root_ec256_privkey.pem` 为公开测试私钥，量产与正式 OTA 签名必须外部注入独立密钥。
 
 ## 独立硬件发布门禁
 

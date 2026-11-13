@@ -18,13 +18,13 @@ SUPPORTED_BOARDS = {"bk7259_robot"}
 SUPPORTED_PROFILES = {"minimal", "robot"}
 CANONICAL_SDK = {
     "repository": "https://github.com/bekencorp/bk_avdk_smp.git",
-    "ref": "release/v4.0.1.11",
-    "sha": "584b947920c414230f9909375f008e7d6a2c6c6b",
+    "ref": "release/v4.0.1.13",
+    "sha": "bd91e8b93a1d46420d613fabe4a6252601431844",
 }
 CANONICAL_SOLUTION = {
     "repository": "https://github.com/bekencorp/bk_solution_ai.git",
-    "ref": "release/v4.0.1.11",
-    "sha": "a1e865e156e8dc31dfb360219c33a6a6d908ea98",
+    "ref": "release/v4.0.1.13",
+    "sha": "08d2093a180d6a6a44a92659c4f457e182a940c7",
 }
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 

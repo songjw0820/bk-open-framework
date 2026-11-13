@@ -8,8 +8,8 @@
 - Python 3
 - CMake 3.16 或更高版本
 - C 编译器
-- 目标固件构建需要 Beken Armino SMP `release/v4.0.1.11`，commit `584b947920c414230f9909375f008e7d6a2c6c6b`
-- `bk7259_robot` 完整产品还需要匹配的 `bk_solution_ai` `release/v4.0.1.11`，commit `a1e865e156e8dc31dfb360219c33a6a6d908ea98`
+- 目标固件构建需要 Beken Armino SMP `release/v4.0.1.13`，commit `bd91e8b93a1d46420d613fabe4a6252601431844`
+- `bk7259_robot` 完整产品还需要匹配的 `bk_solution_ai` `release/v4.0.1.13`，commit `08d2093a180d6a6a44a92659c4f457e182a940c7`
 
 ## 第一个无 SDK 检查
 
