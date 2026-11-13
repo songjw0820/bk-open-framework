@@ -62,7 +62,7 @@ def test_valid_paired_checkouts_are_reported(tmp_path):
 def test_detached_tag_checkout_is_accepted(tmp_path):
     repo = tmp_path / "bk_avdk_smp"
     sha = make_repo(repo, "main")
-    git(repo, "tag", "-a", "release/v4.0.1.11", "-m", "release")
+    git(repo, "-c", "user.name=Test", "-c", "user.email=test@example.com", "tag", "-a", "release/v4.0.1.11", "-m", "release")
     git(repo, "checkout", "-q", "--detach", "release/v4.0.1.11")
     dependency = {"repository": "unused", "ref": "release/v4.0.1.11", "sha": sha}
     result = inspect_checkout(repo, dependency)
