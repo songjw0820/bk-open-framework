@@ -34,6 +34,50 @@ def test_sdk_and_solution_refs_must_match():
         validate_manifest(manifest)
 
 
+def test_sdk_repository_ref_and_sha_must_match_canonical_release():
+    manifest = copy.deepcopy(read_profile("bk7259_minimal"))
+    manifest["sdk"]["repository"] = "https://example.invalid/sdk.git"
+    with pytest.raises(ValueError, match="canonical BK7259 SDK"):
+        validate_manifest(manifest)
+
+
+@pytest.mark.parametrize("field", ["ref", "sha"])
+def test_sdk_canonical_release_fields_are_required(field):
+    manifest = copy.deepcopy(read_profile("bk7259_minimal"))
+    manifest["sdk"][field] = "main" if field == "ref" else "0" * 40
+    with pytest.raises(ValueError, match="canonical BK7259 SDK"):
+        validate_manifest(manifest)
+
+
+def test_minimal_profile_requires_null_solution():
+    manifest = copy.deepcopy(read_profile("bk7259_minimal"))
+    manifest["solution"] = {"repository": "x", "ref": "x", "sha": "0" * 40}
+    with pytest.raises(ValueError, match="minimal profile requires solution:null"):
+        validate_manifest(manifest)
+
+
+def test_robot_profile_requires_canonical_solution():
+    manifest = copy.deepcopy(read_profile("bk7259_robot"))
+    manifest["solution"] = None
+    with pytest.raises(ValueError, match="robot profile requires solution"):
+        validate_manifest(manifest)
+
+
+def test_robot_solution_repository_and_sha_must_match_canonical_release():
+    manifest = copy.deepcopy(read_profile("bk7259_robot"))
+    manifest["solution"]["sha"] = "0" * 40
+    with pytest.raises(ValueError, match="canonical bk_solution_ai"):
+        validate_manifest(manifest)
+
+
+@pytest.mark.parametrize("profile", ["debug", "production"])
+def test_unsupported_profile_is_rejected(profile):
+    manifest = copy.deepcopy(read_profile("bk7259_minimal"))
+    manifest["profile"] = profile
+    with pytest.raises(ValueError, match="unsupported profile"):
+        validate_manifest(manifest)
+
+
 def test_unsupported_chip_is_rejected():
     manifest = copy.deepcopy(read_profile("bk7259_minimal"))
     manifest["chip"] = "BK7239"

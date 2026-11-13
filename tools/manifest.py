@@ -15,6 +15,17 @@ from typing import Any
 
 SUPPORTED_CHIPS = {"BK7259"}
 SUPPORTED_BOARDS = {"bk7259_robot"}
+SUPPORTED_PROFILES = {"minimal", "robot"}
+CANONICAL_SDK = {
+    "repository": "https://github.com/bekencorp/bk_avdk_smp.git",
+    "ref": "release/v4.0.1.11",
+    "sha": "24cce68adccebec25a7c3bb22e0d1de00f0da5cb",
+}
+CANONICAL_SOLUTION = {
+    "repository": "https://github.com/bekencorp/bk_solution_ai.git",
+    "ref": "release/v4.0.1.11",
+    "sha": "009c95182de07ae874e39e3d3c24994431bcec70",
+}
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 
 
@@ -115,23 +126,38 @@ def _validate_dependency(dep: Any, prefix: str) -> None:
         raise ValueError(f"{prefix}.sha must be a 40-character hexadecimal commit")
 
 
+def _validate_canonical(dep: dict[str, Any], expected: dict[str, str], label: str) -> None:
+    for key, value in expected.items():
+        if dep.get(key) != value:
+            raise ValueError(f"{label} {key} must match canonical BK7259 release")
+
+
 def validate_manifest(manifest: dict[str, Any]) -> None:
     if not isinstance(manifest, dict):
         raise ValueError("manifest must be a mapping")
     chip = _required(manifest, "chip", "manifest")
     board = _required(manifest, "board", "manifest")
-    _required(manifest, "profile", "manifest")
+    profile = _required(manifest, "profile", "manifest")
     if chip not in SUPPORTED_CHIPS:
         raise ValueError(f"unsupported chip: {chip}")
     if board not in SUPPORTED_BOARDS:
         raise ValueError(f"unsupported board: {board}")
+    if profile not in SUPPORTED_PROFILES:
+        raise ValueError(f"unsupported profile: {profile}")
     sdk = _required(manifest, "sdk", "manifest")
     _validate_dependency(sdk, "sdk")
+    _validate_canonical(sdk, CANONICAL_SDK, "canonical BK7259 SDK")
     solution = manifest.get("solution")
-    if solution is not None:
+    if profile == "minimal":
+        if solution is not None:
+            raise ValueError("minimal profile requires solution:null")
+    elif solution is None:
+        raise ValueError("robot profile requires solution")
+    else:
         _validate_dependency(solution, "solution")
         if solution["ref"] != sdk["ref"]:
             raise ValueError("sdk.ref and solution.ref must use the same release ref")
+        _validate_canonical(solution, CANONICAL_SOLUTION, "canonical bk_solution_ai")
 
 
 def main(argv: list[str] | None = None) -> int:

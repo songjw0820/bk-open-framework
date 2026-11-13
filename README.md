@@ -1,8 +1,8 @@
 # BK Open Framework
 
-面向 BK7259、BK7258 模组应用开发的开源框架，建立在 Beken Armino SMP 之上。
+面向 BK7259 模组应用开发的开源框架，建立在 Beken Armino SMP 之上。
 
-当前第一阶段以 `bk7259_robot` 为开发和验证目标，锁定：
+第一阶段只支持 BK7259 的 `bk7259_robot` 板卡和 `minimal`/`robot` 两种 profile，锁定：
 
 - Armino SMP `release/v4.0.1.11`
 - `bk_solution_ai` `release/v4.0.1.11`
@@ -20,6 +20,6 @@
 python3 tools/manifest.py platforms/bk7259_minimal.yaml platforms/bk7259_robot.yaml
 ```
 
-上游 SDK 和 solution 保持外置，通过 profile 清单锁定版本。`bk7259_minimal` 只依赖 SDK，`bk7259_robot` 额外使用机器人 solution。
+上游 SDK 和 solution 保持外置，通过 profile 清单锁定版本。`bk7259_minimal` 只依赖 SDK，`bk7259_robot` 额外使用机器人 solution。其他芯片、板卡和 profile 当前不在支持范围内。
 
 当前 Task 0 已完成静态平台证据和 AP/CP 构建 probe。完整 SDK 工具链和实机编译验证将在后续执行。
