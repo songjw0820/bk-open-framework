@@ -128,9 +128,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Require externally supplied locked checkouts
         run: |
-          test -e "${BK_DEPS_ROOT:-}/bk_avdk_smp/.git" || { echo 'BK_DEPS_ROOT/bk_avdk_smp must be the locked SDK checkout'; exit 1; }
-          test -e "${BK_DEPS_ROOT:-}/bk_solution_ai/.git" || { echo 'BK_DEPS_ROOT/bk_solution_ai must be the matching solution checkout'; exit 1; }
-          ./tools/bk doctor --profile bk7259_robot --root "$BK_DEPS_ROOT"
-          echo 'Run the SDK-native AP/CP build, all-app.bin packaging and board smoke test here.'
+          ./tools/sdk_release_gate.sh
         env:
           BK_DEPS_ROOT: ${{ vars.BK_DEPS_ROOT }}

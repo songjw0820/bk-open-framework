@@ -1,0 +1,15 @@
+name: 08_ota_update
+milestone: M2
+platform: BK7259
+platform_manifest: ../../platforms/bk7259_robot.yaml
+profile: robot
+board: bk7259_robot
+components:
+  - bk_core
+  - bk_ota
+dependencies:
+  sdk: 需要 Armino SDK 的 OTA 下载、签名校验和回滚策略
+  optional_plugins:
+    - 无
+host_check: true
+hardware_status: pending

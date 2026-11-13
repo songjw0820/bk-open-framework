@@ -5,7 +5,7 @@
 - 平台：`BK7259`，板卡：`bk7259_robot`
 - profile：`minimal`
 - 里程碑：`M1`
-- 启用组件：``bk_core`, `bk_board`, `bk_net``
+- 启用组件：`bk_core`、`bk_board`、`bk_net``
 - SDK 边界：host 可检查，目标固件需要 Armino SDK
 - 可选插件：无
 

@@ -5,7 +5,7 @@
 - 平台：`BK7259`，板卡：`bk7259_robot`
 - profile：`robot`
 - 里程碑：`M2`
-- 启用组件：``bk_core`, `bk_board`, `bk_peripheral``
+- 启用组件：`bk_core`、`bk_board`、`bk_peripheral``
 - SDK 边界：需要 Armino SDK 的 GPIO、UART 和具体外设驱动
 - 可选插件：无
 

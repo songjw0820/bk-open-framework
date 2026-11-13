@@ -5,7 +5,7 @@
 - 平台：`BK7259`，板卡：`bk7259_robot`
 - profile：`robot`
 - 里程碑：`M3`
-- 启用组件：``bk_core`, `bk_board`, `bk_net`, `bk_media`, `bk_ui`, `bk_ota`, `bk_peripheral``
+- 启用组件：`bk_core`、`bk_board`、`bk_net`、`bk_media`、`bk_ui`、`bk_ota`、`bk_peripheral`
 - SDK 边界：需要锁定的 Armino SDK；完整机器人固件还需要外部 bk_solution_ai 参考工程
 - 可选插件：agora_adapter（可选，需由产品集成注入）
 
