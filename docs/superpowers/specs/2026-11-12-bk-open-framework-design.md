@@ -1,84 +1,118 @@
-# BK7258/BK7259 开源应用框架设计
+# BK7258/BK7259 开源应用框架设计（Rev 3 · 已对齐架构评审与契约规范）
+
+> **唯一事实来源说明（Single Source of Truth）**：本设计规范与 [实施计划](../plans/2026-11-12-bk-open-framework-implementation.md)、[架构深度评审与演进规范](../../reviews/2026-11-13-architecture-review-and-espressif-comparison.md) 保持严格同步。
 
 ## 1. 目标与背景
 
-建设一套面向 BK7258、BK7259 模组客户和机器人应用开发者的开源应用框架。框架建立在 Armino/BK AVDK SDK 之上，复用 SDK 已有的芯片驱动、网络协议栈、蓝牙、音频编解码、图形和系统能力，只补充跨项目的应用层组件、板级适配、示例和文档。
+建设一套面向 BK7258、BK7259 模组客户和机器人应用开发者的开源应用框架。框架建立在 Armino/BK AVDK SDK 之上，复用 SDK 已有的芯片驱动、网络协议栈、蓝牙、音频编解码、图形和系统能力，提供具备实质状态机与安全契约的应用层机制组件、板级适配、示例和文档。
 
-第一阶段重点是让客户能够从模组快速做出可运行产品，同时用机器人方案展示音视频、联网和外设控制能力的组合方式。
+第一阶段（Phase 1/2）唯一验证目标硬件为 **`bk7259_robot`（BK7259，`release/v4.0.1.11`）**，重点让客户能够快速构建可靠产品；BK7258（`release/v3.1.1.x`）作为 Phase 3 远期平台扩展，不阻塞 BK7259 交付。
 
 ## 2. 成功标准
 
-- 新用户可以在统一仓库中完成环境配置、选择板卡、编译并烧录第一个示例。
-- 同一个公共组件 API 可以在 BK7258 和 BK7259 上复用，芯片差异不泄漏到业务代码。
-- 常见产品功能通过配置和组合现有组件完成，不再在每个 Demo 中复制网络、配网、OTA、事件、日志和设备管理代码。
-- 至少提供三类可验证示例：最小联网设备、音视频设备、机器人应用。
-- 文档能够说明“直接使用 SDK 的能力”和“本框架新增的能力”之间的边界。
+- 新用户可以在统一仓库中完成环境配置、版本检查、选择板卡、编译并烧录第一个示例。
+- 业务代码通过统一公共 API 与 Capability Contract（能力契约）访问能力，芯片差异不泄漏到业务代码。
+- 每个公共组件具备实质性状态机、并发安全与生命周期契约（拒绝无价值的纯改名薄包装），不再在每个 Demo 中复制配网、重连、KV 存储、混音、帧池、按键消抖和灯效代码。
+- 至少提供三类可验证示例：最小联网设备、音视频/外设设备、开源 AI 机器人应用。
+- 文档能够清晰说明“直接使用 SDK 的能力”、“本框架新增的机制组件”与“产品策略组件/可选插件”之间的边界。
 
 ## 3. 非目标
 
 - 不重新实现 Armino SDK 已有的 Wi-Fi、BLE、TCP/IP、RTOS、基础驱动、音频编解码和图形底层。
 - 第一阶段不建设完整的在线组件市场或远程依赖服务。
-- 不把所有现有机器人业务代码一次性重构成通用组件。
-- 不承诺所有 BK 芯片和所有第三方板卡在第一版同时支持。
+- 第一阶段不承诺未经验证的“全自动 CP 工程配置生成器（Auto-CP）”，而是采用来源隔离的受控 CP 模板。
+- 第一阶段不将 BK7258 实机支持纳入发布门槛（归入 Phase 3）。
 
 ## 4. 约束
 
 - 以当前 Armino SMP/BK AVDK 构建系统和 Kconfig 机制为基础。
-- 支持 BK7258、BK7259；业务代码通过统一接口访问能力，芯片和板卡差异放在适配层。
-- 组件必须能够独立启用或关闭，避免引入不必要的 ROM、RAM 和固件体积。
-- 现有 `bk_solution_ai` 中已经稳定、可复用的组件优先迁移或抽取，不复制 SDK 内已有实现。
-- 公共 API、配置项、示例和文档使用中英文可扩展的命名方式，第一阶段至少提供中文说明。
+- **阶段边界约束**：Phase 1/2 只实现 `bk7259_v4` 与 `posix_sim`（主机行为单测后端）；`bk7258_v3` 仅预留接口契约。
+- **Minimal 与 Solution 严格解耦约束**：
+  - `bk7259_minimal` profile **仅依赖 `bk_avdk_smp` SDK**，其受控 CP 模板直接取自 `bk_avdk_smp/projects/app/cp`，严禁直接或间接引用 `bk_solution_ai` 的任何文件。
+  - 只有 `bk7259_robot` profile 才锁定并引用 `bk_solution_ai`（`projects/beken_robot/cp` 及机器人参考资源）。
+- 组件必须细粒度拆分、能够通过 Kconfig 独立启用或关闭，关闭时零符号进入最终镜像。
+- 公共框架采用 Apache-2.0；Agora、商用云 SDK 等专有依赖作为可选插件；参考第三方开源协议（如 MIT 许可的小智 WebSocket 协议）需独立模块并保留完整许可证声明。
 
 ## 5. 架构
 
 ```text
-应用示例 / 产品模板
+应用示例 / 产品模板（仅调用公共 C API，无芯片宏）
         |
-框架服务组件（配网、设备、OTA、媒体、控制、事件）
+产品策略组件（bk_motion / bk_robot_face / bk_battery_policy）与可选插件（plugin_agora）
         |
-公共抽象接口（网络、音频、视频、显示、存储、外设）
+框架机制组件（事件、安全存储、配网、音频会话/混音、视频帧池、按键、灯效、OTA、AI协议）
         |
-芯片/板卡适配层（BK7258、BK7259、具体模组和开发板）
+公共抽象接口 + Capability Contract（能力契约、所有权、线程与错误码规范）
         |
-Armino/BK AVDK SDK
+平台后端与板级适配层（bk7259_v4 / posix_sim / 远期 bk7258_v3 + bk_board）
+        |
+Armino/BK AVDK SDK（外置锁定）
 ```
 
 ### 5.1 SDK 复用边界
 
-直接依赖 Armino SDK 的能力包括：系统任务和同步原语、Wi-Fi/BLE 协议栈、TCP/IP、基础外设驱动、音频编解码、LVGL 或 SDK 提供的显示栈、Flash/文件系统和底层 OTA 能力。
+直接依赖 Armino SDK 的能力包括：RTOS 任务和同步原语、Wi-Fi/BLE 协议栈、TCP/IP、基础外设驱动、音频编解码、LVGL 显示栈、Flash/文件系统、`bk_frame_buffer` / `cache` 原语和底层 BL2/OTA 能力。
 
-框架新增的能力包括：统一初始化和生命周期、配置模型、事件总线、设备状态、网络配网流程、服务编排、跨芯片抽象、可复制的产品模板、日志和故障诊断约定。
+框架新增的能力包括：异步事件总线、带敏感凭证加密钩子的 KV 存储、板级能力契约与外设句柄初始化、配网与退避重连状态机、音频会话背压与提示音混音、引用计数视频帧池与 Cache 同步封装、按键/灯效状态机、OTA 前置媒体挂起与安全校验编排、独立的小智 WebSocket/Opus/MCP 协议适配。
 
-### 5.2 公共组件分层
+### 5.2 细粒度组件分层（机制层 vs 产品策略层）
 
-- `bk_core`：错误码、版本、日志、生命周期、事件总线、时间和配置基础设施。
-- `bk_net`：网络状态、配网编排、重连策略、设备发现和局域网通信。
-- `bk_device`：设备身份、能力描述、状态模型和命令分发。
-- `bk_ota`：OTA 状态机、版本校验、回滚和升级事件；底层传输复用 SDK。
-- `bk_media`：音频会话、视频帧、媒体资源和数据通道抽象；具体编解码复用 SDK。
-- `bk_ui`：显示设备、输入事件、页面生命周期和资源管理；UI 框架复用 SDK。
-- `bk_peripheral`：电机、舵机、传感器、按键、LED 等通用外设接口。
-- `bk_board`：板卡引脚、时钟、电源、屏幕、摄像头、音频输入输出和可选外设描述。
-
-机器人控制、AI Agent、Agora 等产品相关能力放在独立的产品组件或示例中，避免进入最小框架依赖。
+1. **基础与核心机制组件（`components/`）**：
+   - `bk_common`：统一错误码（`bk_err.h`）、版本宏、日志与 Capability Contract 基础定义。
+   - `bk_port`：OS 原语、SRAM/PSRAM 内存分配统计（封装 `os_sram_malloc` / `psram_malloc` / `psram_cache_malloc`）、D-Cache 同步原语（封装 `bk_dcache_clean_for_producer` / `bk_dcache_invalidate_for_consumer`）。
+   - `bk_core_event`：独立工作线程的异步事件总线与组件生命周期管理。
+   - `bk_storage`：KV 持久化存储、CRC32 校验、敏感凭证加密钩子（`BK_STORAGE_FLAG_SENSITIVE`）与安全擦除（`bk_storage_erase_ns`）。
+   - `bk_health`（可选）：SRAM/PSRAM 水位采样与任务健康诊断。
+   - `bk_board`：板卡静态验证能力表（区分 `verified` 与 `unverified`）与已核实外设句柄初始化。
+   - `bk_net`：Wi-Fi 状态机、BLE/SoftAP 配网编排、多 AP 凭证管理、指数退避重连、SNTP 与 TLS 证书校验检查。
+   - `bk_button`（可选）：GPIO/ADC 按键消抖与单击/双击/长按状态机。
+   - `bk_led_effect`（可选）：LED 优先级闪烁/呼吸状态队列。
+   - `bk_audio_session`（可选）：单路 20ms PCM 采集（含 AEC 开关）/播放会话与下行 Ringbuffer 背压管理。
+   - `bk_audio_mixer`（可选）：本地提示音与实时语音流的 Ducking / Preempt 混音器。
+   - `bk_video_frame_pool`（可选）：基于 64 字节对齐 PSRAM 的原子引用计数视频帧池与 Cache 同步封装。
+   - `bk_ui_core`（可选）：LVGL 线程互斥锁（`lock/unlock`）与显示刷新生命周期。
+   - `bk_ota`（可选）：升级前媒体管线挂起协同、镜像校验与下载状态管理（完整安全签名、防回滚与分区重算作为目标能力受平台证据门禁约束）。
+   - `bk_ai_agent`（可选）：拆分为底层 `transport_websocket` 与独立的 `protocol_xiaozhi`（JSON + 60ms Opus 聚合 + MCP JSON-RPC 2.0 主路径；传统 `iot` 标记为 deprecated 仅做可选兼容）。
+2. **产品策略组件（`product_components/`，不进入 `minimal` 依赖）**：
+   - `bk_motion`：舵机/马达关键帧平滑插补序列器。
+   - `bk_robot_face`：机器人表情动画视图。
+   - `bk_battery_policy`：电池充放电策略。
+3. **可选商业插件（`plugins/`）**：
+   - `plugin_agora`：声网 RTC/RTM 适配插件。
 
 ## 6. 仓库结构
 
 ```text
 bk-open-framework/
+  platforms/
+    bk7259_minimal.yaml
+    bk7259_robot.yaml
   components/
-    bk_core/
-    bk_net/
-    bk_device/
-    bk_ota/
-    bk_media/
-    bk_ui/
-    bk_peripheral/
+    bk_common/
+    bk_port/
+    bk_core_event/
+    bk_storage/
+    bk_health/
     bk_board/
+    bk_net/
+    bk_button/
+    bk_led_effect/
+    bk_audio_session/
+    bk_audio_mixer/
+    bk_video_frame_pool/
+    bk_ui_core/
+    bk_ota/
+    bk_ai_agent/
+      transport_websocket/
+      protocol_xiaozhi/
+  product_components/
+    bk_motion/
+    bk_robot_face/
+    bk_battery_policy/
+  plugins/
+    plugin_agora/
   boards/
-    bk7258_module_ref/
-    bk7259_module_ref/
-    bk7259_robot_ref/
+    bk7259_robot/
   examples/
     01_wifi_provision/
     02_lan_device/
@@ -86,99 +120,37 @@ bk-open-framework/
     04_camera_stream/
     05_peripheral_control/
     06_robot_reference/
-  projects/
-    product_template/
+  products/
+    bk7259_robot/
   docs/
-    getting-started/
-    components/
-    boards/
-    examples/
-    migration/
+    platforms/
+    legal/
+    reviews/
+    superpowers/
+    release-checklist.md
   tools/
-    manifest/
-    check_api/
+    bk
+    spikes/
 ```
 
-框架新建独立 Git 仓库。现有 `bk_solution_ai` 的机器人工程只作为迁移来源、参考工程和回归对象，不作为通用最小 profile 的强制依赖。
+## 7. 四级验证门禁（4-Tier Verification Gate）
 
-## 7. 示例和产品模板
-
-示例按学习路径组织：
-
-1. `01_wifi_provision`：最小启动、配网、联网和日志。
-2. `02_lan_device`：设备身份、局域网发现、命令和状态。
-3. `03_audio_player`：音频输入输出、提示音和资源管理。
-4. `04_camera_stream`：摄像头采集、视频帧和网络发送。
-5. `05_peripheral_control`：按键、LED、电机、舵机和传感器。
-6. `06_robot_reference`：组合网络、音频、视频、UI 和机器人控制。
-
-`projects/product_template` 提供客户复制的最小产品骨架，业务逻辑只依赖公共 API 和板卡配置。
+1. **Tier 1（Host 行为门禁 - `posix_sim`）**：仅验证纯状态机、事件顺序、CRC/序列化、退避计时、引用计数、20ms->60ms 帧聚合、混音算术与协议报文解析（不能替代 IPC、DMA/Cache、射频与硬件验证）。
+2. **Tier 2（SDK 编译与裁剪门禁 - `bk7259_v4`）**：验证 AP/CP 外部组件注入、Kconfig 关闭时零残留符号、`bk7259_minimal`（仅依赖 `bk_avdk_smp`）与 `bk7259_robot` 完整生成 `all-app.bin`。
+3. **Tier 3（故障注入与压力门禁）**：验证弱网断线重连、SNTP 失败/过期证书拒绝、满缓冲背压、OTA 媒体挂起失败中止与断电恢复。
+4. **Tier 4（真实板卡验收门禁 - `bk7259_robot`）**：按 [docs/release-checklist.md](../../release-checklist.md) 逐项在实机硬件上完成验收。
 
 ## 8. 版本与依赖
 
-BK 官方仓库的版本线需要作为外部依赖坐标，而不是被我们的框架版本替代。目前已核对到：
+| 芯片 | 阶段 | Armino SMP 维护分支 | AI solution 维护分支 | 生产依赖方式 |
+|---|---|---|---|---|
+| BK7259 | Phase 1 / Phase 2（当前） | `release/v4.0.1` (`release/v4.0.1.11`) | `release/v4.0.1` (`release/v4.0.1.11`) | `minimal` 仅锁定 SDK；`robot` 同时锁定配对的 SDK 与 solution 标签及 SHA |
+| BK7258 | Phase 3（远期扩展） | `release/v3.1.1` | `release/v3.1.1` | 待 BK7259 `v0.1.0` 发布后再行引入 |
 
-| 芯片 | Armino SMP 维护分支 | AI solution 维护分支 | 生产依赖方式 |
-|---|---|---|---|
-| BK7258 | `release/v3.1.1` | `release/v3.1.1` | SDK 与 solution 使用同一个 `release/v3.1.1.x` 标签 |
-| BK7259 | `release/v4.0.1` | `release/v4.0.1` | SDK 与 solution 使用同一个 `release/v4.0.1.x` 标签 |
+## 9. 分阶段增量交付范围
 
-维护分支用于持续修复和开发；正式发布标签用于量产。框架不能只记录 `v3.1.1` 或 `v4.0.1` 这样的主版本，而应锁定完整的 SDK/solution tag，并记录对应 commit SHA。当前公开仓库中，SDK 与 solution 的标签发布进度也可能不同，因此不能简单地“各自取最新 tag”；必须选择两个仓库都存在、且版本号完全相同的配对标签。
-
-第一阶段采用仓库内 manifest 文件描述：目标芯片、SDK 仓库、SDK ref、SDK SHA、板卡、启用组件和组件版本。`solution` 不作为通用框架的必需依赖，而作为可选的产品 profile 依赖；`bk7259_robot` profile 才锁定 `bk_solution_ai` 的 ref 和 SHA。组件使用语义化版本约定；当组件 API 或 Kconfig 发生不兼容变化时提升主版本。
-
-暂不建设在线组件仓库，但所有组件的依赖必须显式声明，禁止通过隐式头文件路径或复制源码解决依赖。
-
-## 9. 第一阶段交付范围
-
-- 建立仓库目录、构建入口和基础 README。
-- 抽取 `bk_core`、`bk_net`、`bk_board` 三个基础组件。
-- 第一阶段先完成 `bk7259_robot` 参考板卡配置和实机验证；BK7258 板卡适配后续扩展。
-- 完成最小联网示例和局域网设备示例。
-- 将现有机器人方案接入公共初始化、日志、网络和板卡配置接口，保持原有功能可运行。
-- 提供构建、烧录、配置、常见故障和组件边界文档。
-
-音视频、OTA、机器人完整组件的深度抽取作为第二阶段，在基础 API 经过两个芯片和两个示例验证后进行。
-
-## 10. 主要风险与处理
-
-- **SDK 版本漂移**：manifest 固定 SDK 版本，并在 CI 或构建检查中显示版本。
-- **BK7258/BK7259 能力差异**：通过能力查询和板卡配置声明可选功能，业务层不得直接判断芯片宏。
-- **组件过度抽象**：第一阶段只抽取已有两个以上项目都需要的能力，单一产品特性留在产品组件。
-- **固件体积膨胀**：每个组件提供 Kconfig 开关和默认关闭策略，示例只启用所需组件。
-- **文档与代码失配**：每个公共组件必须有最小示例或 API smoke check。
-
-## 11. 已确认的默认决策
-
-除非评审时提出修改，本文默认：
-
-1. 第一阶段继续使用 Armino 原生 Make/Kconfig，不引入新的构建系统。
-2. 第一阶段以单仓库为主，不拆分独立组件仓库。
-3. 公共 API 采用 C 接口，保持对 C/C++ 应用的可调用性。
-4. 第一阶段只验证 `bk7259_robot` 参考板，BK7258 作为后续平台扩展。
-5. 先完成可运行示例和文档，再建设组件在线分发能力。
-6. 框架 manifest 以 `chip + sdk_ref + board + profile` 为最小锁定单元；只有依赖官方 solution 的 profile 才要求 `solution_ref` 与 `sdk_ref` 完全相同。
-
-## 11.1 已确认的第一阶段决策
-
-以下决策已确认并作为实施约束：
-
-1. 第一阶段只支持 `bk7259_robot` 参考板卡。
-2. SDK 锁定 `release/v4.0.1.11` 并记录 commit SHA；`bk7259_robot` profile 同时锁定匹配的 `bk_solution_ai` `release/v4.0.1.11` 和 commit SHA。
-3. 新建独立框架仓库，当前 `robot_bk7259` 和官方 `bk_solution_ai` 作为开发/参考/回归来源。
-4. 第一阶段纳入基础联网、音视频、UI、OTA、外设和机器人参考示例，但优先保证基础框架和最小联网路径可独立运行。
-5. 公共框架采用 Apache-2.0；Agora、AI 云端 SDK 等专有依赖作为可选插件，不进入核心依赖。
-6. SDK 和 solution 外置，通过 manifest 和工具锁定版本；保留 Armino 原生 Make/Kconfig，并增加轻量构建包装命令。
-7. 第一阶段以 Linux/macOS + Docker 和中文文档为优先，完成 `bk7259_robot` 实机验收。
-
-## 12. 历史评审问题（已解决）
-
-以下问题已在评审过程中确认，保留记录以说明设计决策来源：
-
-1. **SDK 版本**：BK7258/BK7259 是否统一基于同一 Armino 分支，还是分别锁定版本？这会决定 manifest、构建入口和兼容适配层。BK7259 第一阶段已确定使用 `bk7259_robot`。
-2. **参考板卡**：第一阶段已确定使用 `bk7259_robot`；仍需确认该板卡实际启用的屏幕、摄像头、音频、存储和配网能力，以确定板卡适配和示例范围。
-3. **开源许可**：框架采用 Apache-2.0、MIT 还是其他许可证；Agora 等专有依赖是否只保留适配接口和说明？这决定仓库可发布内容。
-4. **仓库关系**：框架是在当前 `bk_solution_ai` 原地演进、复制出新仓库，还是先做兼容层再迁移？这决定目录、历史和回归安排。
-5. **硬件验收**：第一阶段是否要求真实硬件验收；如果要求，可提供哪些板卡、烧录工具和测试环境？这决定验证深度。
-
-默认建议为：按芯片分别锁定 SDK 版本；第一阶段只验证 `bk7259_robot`；采用 Apache-2.0，专有依赖做可选插件；新建框架仓库并保留 `bk_solution_ai` 作为参考和回归来源；完成构建验证并在 `bk7259_robot` 实机上做 smoke test。
+1. **Step 0（前置阻塞证据闭环）**：在具备锁定版 `bk_avdk_smp` 与工具链的环境中跑通 Task 0 AP/CP 空组件编译与 `all-app.bin` 打包；核实 `bk7259_robot` 分区表（解决 `ota` 分区仅 264KB 的限制）与引脚定义。
+2. **Step 1（M1 最小公共层与联网）**：交付 `./tools/bk`、`bk_common`、`bk_port`、`bk_core_event`、`bk_storage`、`bk_board`、`bk_net` 及 `01_wifi_provision`、`02_lan_device`。
+3. **Step 2（M2-A 单一媒体与基础外设）**：增量交付 `bk_button`、`bk_led_effect`、`bk_audio_session`、`bk_video_frame_pool`、`bk_ui_core` 及示例 `03`~`05`。
+4. **Step 3（M2-B 安全 OTA）**：在重规划验证后的分区表基础上交付 `bk_ota` 并完成实机升级/异常拒绝验证。
+5. **Step 4（M3 小智协议与机器人参考工程）**：交付 `bk_ai_agent`（`transport_websocket` + `protocol_xiaozhi` MCP 主路径）、`product_components/*`、`plugins/plugin_agora` 及 `06_robot_reference`，通过 [docs/release-checklist.md](../../release-checklist.md) 发布 `v0.1.0`。

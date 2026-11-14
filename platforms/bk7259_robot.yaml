@@ -5,21 +5,42 @@ profile: robot
 sdk:
   repository: https://github.com/bekencorp/bk_avdk_smp.git
   ref: release/v4.0.1.11
-  sha: 24cce68adccebec25a7c3bb22e0d1de00f0da5cb
+  tag_sha: be5e89d4f6b2f6f444727cad5fd0908a8dc93499
+  commit_sha: 584b947920c414230f9909375f008e7d6a2c6c6b
+  sha: 584b947920c414230f9909375f008e7d6a2c6c6b
 solution:
   repository: https://github.com/bekencorp/bk_solution_ai.git
   ref: release/v4.0.1.11
-  sha: 009c95182de07ae874e39e3d3c24994431bcec70
+  tag_sha: 009c95182de07ae874e39e3d3c24994431bcec70
+  commit_sha: a1e865e156e8dc31dfb360219c33a6a6d908ea98
+  sha: a1e865e156e8dc31dfb360219c33a6a6d908ea98
+cp_template:
+  source: solution
+  path: projects/beken_robot/cp
 verification:
-  sdk_sha: 24cce68adccebec25a7c3bb22e0d1de00f0da5cb
-  solution_sha: 009c95182de07ae874e39e3d3c24994431bcec70
+  sdk_sha: 584b947920c414230f9909375f008e7d6a2c6c6b
+  solution_sha: a1e865e156e8dc31dfb360219c33a6a6d908ea98
   ap_cp_build: not_run_toolchain_unavailable
   all_app_bin: not_run_toolchain_unavailable
 components:
-  - bk_core
+  - bk_common
+  - bk_port
+  - bk_core_event
+  - bk_storage
+  - bk_health
   - bk_board
   - bk_net
-  - bk_media
-  - bk_ui
+  - bk_button
+  - bk_led_effect
+  - bk_audio_session
+  - bk_audio_mixer
+  - bk_video_frame_pool
+  - bk_ui_core
   - bk_ota
-  - bk_peripheral
+  - bk_ai_agent
+product_components:
+  - bk_motion
+  - bk_robot_face
+  - bk_battery_policy
+optional_plugins:
+  - plugin_agora

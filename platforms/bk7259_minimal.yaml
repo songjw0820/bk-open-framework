@@ -5,14 +5,23 @@ profile: minimal
 sdk:
   repository: https://github.com/bekencorp/bk_avdk_smp.git
   ref: release/v4.0.1.11
-  sha: 24cce68adccebec25a7c3bb22e0d1de00f0da5cb
+  tag_sha: be5e89d4f6b2f6f444727cad5fd0908a8dc93499
+  commit_sha: 584b947920c414230f9909375f008e7d6a2c6c6b
+  sha: 584b947920c414230f9909375f008e7d6a2c6c6b
 solution: null
-# This profile intentionally has no bk_solution_ai dependency.
+# This profile intentionally has zero bk_solution_ai dependency.
+# Its controlled CP baseline template comes strictly from bk_avdk_smp/projects/app/cp.
+cp_template:
+  source: sdk
+  path: projects/app/cp
 verification:
-  sdk_sha: 24cce68adccebec25a7c3bb22e0d1de00f0da5cb
+  sdk_sha: 584b947920c414230f9909375f008e7d6a2c6c6b
   ap_cp_build: not_run_toolchain_unavailable
   all_app_bin: not_run_toolchain_unavailable
 components:
-  - bk_core
+  - bk_common
+  - bk_port
+  - bk_core_event
+  - bk_storage
   - bk_board
   - bk_net

@@ -1,300 +1,217 @@
-# BK7258/BK7259 开源应用框架 Implementation Plan
+# BK7258/BK7259 开源应用框架 Implementation Plan（Rev 3 · 已对齐评审契约与增量路线）
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **唯一事实来源（Single Source of Truth）**：本实施计划已与 [设计规范](../specs/2026-11-12-bk-open-framework-design.md)、[架构评审与演进规范](../../reviews/2026-11-13-architecture-review-and-espressif-comparison.md) 及 [发布验收清单](../../release-checklist.md) 严格对齐。所有执行代理必须以本计划中的细粒度组件拆分、CP 模板隔离规则与四级门禁为准。
 
-**Goal:** 创建独立的 BK 开源应用框架仓库，第一阶段以 `bk7259_robot` 为唯一验证板卡，复用 BK 官方 SDK 和 solution，提供可复用的联网、音视频、UI、OTA、外设和机器人应用组件。
+**Goal:** 创建独立的 BK 开源应用框架仓库，Phase 1/2 以 `bk7259_robot`（BK7259, `release/v4.0.1.11`）为唯一验证硬件，复用 BK 官方 SDK（以及仅在 `robot` profile 下可选复用的 `bk_solution_ai`），按证据驱动的增量顺序交付具备实质状态机与安全契约的机制组件与产品组件。
 
-**Architecture:** 框架仓库与 `bk_avdk_smp`、`bk_solution_ai` 外置分离，通过 manifest 锁定 `release/v4.0.1.11` 和 commit SHA。SDK 是必需依赖，`bk_solution_ai` 只在 `bk7259_robot` profile 中作为可选参考依赖。公共组件位于框架仓库，芯片和板卡差异位于 platform/board 适配层，专有 Agora/AI 云端能力位于可选插件。
+**Architecture:**
+- 框架仓库与 `bk_avdk_smp`、`bk_solution_ai` 外置分离，通过 manifest 锁定 `release/v4.0.1.11`（同时记录 Tag Object SHA 与 Peeled Commit SHA）。
+- **`bk7259_minimal` 与 `bk_solution_ai` 100% 物理隔离**：`bk7259_minimal` 仅依赖 `bk_avdk_smp`，其受控 CP 模板直接取自 `bk_avdk_smp/projects/app/cp`；仅 `bk7259_robot` profile 允许引用 `bk_solution_ai/projects/beken_robot/cp`。
+- 采用 **`Public API + Capability Contract + Platform Backend (bk7259_v4 / posix_sim)`** 架构，将基础机制组件（`components/*`）与产品策略组件（`product_components/*`）及专有插件（`plugins/*`）严格分离。
 
-**Tech Stack:** C, Make/CMake, Kconfig, Armino SMP, shell/Python tooling, Docker, GitHub Actions.
+**Tech Stack:** C11, Make/CMake, Kconfig, Armino SMP (`release/v4.0.1.11`), Python/Shell CLI, CTest/PyTest, Docker/GitHub Actions.
 
-**Spec:** `docs/superpowers/specs/2026-11-12-bk-open-framework-design.md`
+**Spec:** [docs/superpowers/specs/2026-11-12-bk-open-framework-design.md](../specs/2026-11-12-bk-open-framework-design.md)
 
 ## Global Constraints
 
-- 第一阶段只支持 `bk7259_robot`。
-- `bk_avdk_smp` 必须锁定 `release/v4.0.1.11` 并记录 commit SHA；只有 `bk7259_robot` profile 锁定匹配的 `bk_solution_ai` ref/SHA。
-- 不复制 Armino SDK 或官方 solution 的完整源码到框架仓库。
-- 通用最小联网 profile 不得强依赖 `bk_solution_ai`；只有机器人 profile 才锁定 solution。
-- 公共框架采用 Apache-2.0；Agora、AI 云端 SDK 等专有依赖不得进入核心依赖。
-- 保留 Armino 原生 Make/Kconfig，新增轻量构建和诊断包装命令。
-- 第一阶段优先支持 Linux/macOS + Docker，中文文档优先。
-
-## Review Focus
-
-- SDK/solution tag 不一致时，诊断工具必须在构建前失败。
-- 缺少 `bk7259_robot` 板级能力时，组件必须给出配置错误而不是运行期崩溃。
-- 未启用可选媒体/OTA/插件时，最小联网示例不得引入对应依赖。
-- 网络断开、重复配网和重启场景必须保持可恢复状态。
-- 组件 API 不得把 BK7259 芯片宏泄漏到产品业务代码。
+- Phase 1/2 只支持 `bk7259_robot`（BK7259）；`BK7258 (release/v3.1.1.x)` 整体归入 Phase 3，不进入当前交付门槛。
+- `bk7259_minimal` 严禁直接或间接引用 `bk_solution_ai` 中的任何文件（包括 CP 配置模板）。
+- 第一阶段不承诺未经验证的“全自动 CP 生成器（Auto-CP）”，仅对受控 CP 模板执行 Schema 与 diff 校验。
+- 公共框架采用 Apache-2.0；Agora 等商业闭源 SDK 放入 `plugins/plugin_agora`；小智协议适配放入独立组件 `components/bk_ai_agent/protocol_xiaozhi`（声明上游协议文档为 MIT 许可证，以 MCP JSON-RPC 2.0 为唯一主路径）。
+- 遵循 **Tier 1 (Host `posix_sim`) -> Tier 2 (SDK Cross-Compile `all-app.bin`) -> Tier 3 (Fault Injection) -> Tier 4 (`bk7259_robot` Real Hardware)** 四级验证门禁，未通过上一级门禁不得宣称闭合。
 
 ---
 
-### Task 0: 完成 BK7259 AP/CP 构建集成与硬件事实清单 Spike
+### Task 0: 闭合 BK7259 AP/CP 构建集成、分区审计与硬件事实清单 Spike（前置阻塞门禁）
 
 **Files:**
-- Create: `bk-open-framework/docs/platforms/bk7259_v4.0.1.11.md`
-- Create: `bk-open-framework/platforms/bk7259_minimal.yaml`
-- Create: `bk-open-framework/platforms/bk7259_robot.yaml`
-- Create: `bk-open-framework/tools/spikes/bk7259_component_probe/`
-- Create: `bk-open-framework/docs/legal/bk_solution_ai-dependency-inventory.md`
+- Modify: `docs/platforms/bk7259_v4.0.1.11.md`
+- Modify: `platforms/bk7259_minimal.yaml`
+- Modify: `platforms/bk7259_robot.yaml`
+- Modify: `tools/spikes/bk7259_component_probe/probe.sh`
+- Modify: `docs/legal/bk_solution_ai-dependency-inventory.md`
 
-**Interfaces:**
-- `bk7259_minimal` requires only Armino SMP SDK.
-- `bk7259_robot` additionally pins matching `bk_solution_ai` ref/SHA.
-- The probe proves where external components are injected into AP/CP Make/CMake/Kconfig builds and records exact build entry points.
+**Interfaces & Gate Criteria:**
+- `bk7259_minimal` verifies AP/CP build against `bk_avdk_smp/projects/app` ONLY (without `--solution-dir`).
+- `bk7259_robot` verifies AP/CP build against `bk_avdk_smp` + `bk_solution_ai/projects/beken_robot`.
+- Empty external component compiles on AP/CP, links into `all-app.bin`, and is excluded when its Kconfig switch is `n`.
 
-- [ ] **Step 1: Record real SDK and solution SHAs for `release/v4.0.1.11`**
-- [ ] **Step 2: Inspect `bk7259_robot` board configuration and hardware documents; record verified and unverified capabilities**
-- [ ] **Step 3: Build an empty external component in both required AP/CP integration points; pass only when both side artifacts compile and the final `all-app.bin` link succeeds**
-- [ ] **Step 4: Inventory licenses, resources, models and proprietary dependencies copied or referenced by `bk_solution_ai`**
-- [ ] **Step 5: Commit the spike evidence and unblock later component tasks**
+- [ ] **Step 1: Verify and record both Tag Object SHA and Peeled Commit SHA for `release/v4.0.1.11`**
+- [ ] **Step 2: Record verified SDK facts (L2 PL310 32B cache line, 64B `bk_frame_queue` alignment, `bk_dcache_clean_for_producer`/`bk_dcache_invalidate_for_consumer`, and `beken_robot` 8MB partition table `264K` `ota` limitation) in `docs/platforms/bk7259_v4.0.1.11.md`**
+- [ ] **Step 3: In an environment with the locked SDK checkout and Armino toolchain, run `probe.sh --build` for both `minimal` (`projects/app`) and `robot` (`projects/beken_robot`), verifying `all-app.bin` generation and Kconfig exclusion**
+- [ ] **Step 4: Complete license/redistribution audit for any files referenced from `bk_solution_ai`**
+- [ ] **Step 5: Update `verification` status in `platforms/bk7259_*.yaml` from `not_run_toolchain_unavailable` to verified evidence**
 
-### Task 1: 创建独立框架仓库骨架与版本清单
+---
 
-**Files:**
-- Create: `bk-open-framework/LICENSE`
-- Create: `bk-open-framework/README.md`
-- Create: `bk-open-framework/README_CN.md`
-- Create: `bk-open-framework/components/.gitkeep`
-- Create: `bk-open-framework/boards/.gitkeep`
-- Create: `bk-open-framework/examples/.gitkeep`
-- Create: `bk-open-framework/products/.gitkeep`
-- Create: `bk-open-framework/tools/.gitkeep`
-
-**Interfaces:**
-- Produces manifest fields `chip`, `board`, `profile`, `sdk.repository`, `sdk.ref`, `sdk.sha`, and optional `solution.repository`, `solution.ref`, `solution.sha`.
-
-- [ ] **Step 1: Write manifest validation tests**
-
-Add shell/Python tests covering valid `bk7259_minimal` and `bk7259_robot` manifests, missing SHA, mismatched SDK/solution refs, and unsupported chip/board.
-
-- [ ] **Step 2: Run tests and verify the invalid cases fail**
-
-Run: `python3 -m pytest tools/tests/test_manifest.py -v`
-Expected: invalid manifests fail with explicit validation errors.
-
-- [ ] **Step 3: Implement manifest schema and repository skeleton**
-
-Create Apache-2.0 license, bilingual README, directory layout, and the `bk7259_robot` manifest pinned to `release/v4.0.1.11`.
-
-- [ ] **Step 4: Run manifest tests**
-
-Run: `python3 -m pytest tools/tests/test_manifest.py -v`
-Expected: all manifest validation tests pass.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add .
-git commit -m "chore: scaffold bk open framework"
-```
-
-### Task 2: 实现 SDK/solution 获取与版本诊断工具
+### Task 1: 实现版本诊断工具 `./tools/bk` 与 Manifest 隔离校验
 
 **Files:**
-- Create: `bk-open-framework/tools/bk`
-- Create: `bk-open-framework/tools/bk_manifest.py`
-- Create: `bk-open-framework/tools/bk_fetch.py`
-- Create: `bk-open-framework/tools/tests/test_doctor.py`
-- Modify: `bk-open-framework/README_CN.md`
+- Create: `tools/bk`
+- Create: `tools/bk_manifest.py`
+- Create: `tools/bk_fetch.py`
+- Create: `tools/tests/test_manifest.py`
+- Create: `tools/tests/test_doctor.py`
 
 **Interfaces:**
-- `./tools/bk doctor --profile bk7259_robot` validates manifest, refs, SHA and the optional solution checkout.
-- `./tools/bk fetch --profile bk7259_minimal --root <path>` clones or updates the SDK only; robot profile also fetches solution.
-- `./tools/bk env --profile bk7259_robot` prints `SDK_DIR`, optional solution path and selected board.
+- `./tools/bk doctor --profile bk7259_minimal` validates SDK checkout SHA and confirms zero dependency on `bk_solution_ai`.
+- `./tools/bk doctor --profile bk7259_robot` validates paired SDK + solution ref/SHA (supporting both tag object SHA and peeled commit SHA).
+- `./tools/bk fetch --profile <profile> --root <path>` clones/checks out the locked repositories.
 
-- [ ] **Step 1: Write failing doctor tests**
-
-Test absent checkout, mismatched refs, wrong commit SHA, and valid paired checkouts.
-
-- [ ] **Step 2: Run tests to verify failure**
-
-Run: `python3 -m pytest tools/tests/test_doctor.py -v`
-Expected: tests fail because doctor implementation is absent.
-
-- [ ] **Step 3: Implement validation and fetch commands**
-
-Use the manifest as the only source of truth; reject SDK/solution ref mismatch only for profiles that declare a solution, before invoking Make.
-
-- [ ] **Step 4: Run tests and a dry-run doctor**
-
-Run: `python3 -m pytest tools/tests/test_doctor.py -v` and `./tools/bk doctor --profile bk7259_robot --dry-run`.
-Expected: tests pass and dry-run prints the locked pair.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add tools README_CN.md
-git commit -m "feat: add upstream version doctor"
-```
-
-### Task 3: 建立 `bk_core` 和统一应用生命周期
-
-**Files:**
-- Create: `bk-open-framework/components/bk_core/include/bk_core.h`
-- Create: `bk-open-framework/components/bk_core/include/bk_err.h`
-- Create: `bk-open-framework/components/bk_core/include/bk_event.h`
-- Create: `bk-open-framework/components/bk_core/src/bk_core.c`
-- Create: `bk-open-framework/components/bk_core/src/bk_event.c`
-- Create: `bk-open-framework/components/bk_core/Kconfig`
-- Create: `bk-open-framework/components/bk_core/CMakeLists.txt`
-- Create: `bk-open-framework/components/bk_core/tests/test_event.c`
-
-**Interfaces:**
-- `bk_err_t bk_core_init(const bk_core_config_t *config)`
-- `bk_err_t bk_core_start(void)`
-- `bk_err_t bk_event_subscribe(bk_event_id_t id, bk_event_handler_t handler, void *ctx)`
-- `bk_err_t bk_event_publish(const bk_event_t *event)`
-- `bk_err_t bk_core_deinit(void)`
-
-- [ ] **Step 1: Write event ordering and lifecycle tests**
-- [ ] **Step 2: Run tests and verify they fail**
-- [ ] **Step 3: Implement C API, Kconfig and Armino component integration**
-- [ ] **Step 4: Run host tests and BK7259 compile smoke test**
-- [ ] **Step 5: Commit**
-
-### Task 4: 建立 `bk_board` 与 `bk7259_robot` 板卡适配层
-
-**Files:**
-- Create: `bk-open-framework/components/bk_board/include/bk_board.h`
-- Create: `bk-open-framework/components/bk_board/src/bk_board.c`
-- Create: `bk-open-framework/boards/bk7259_robot/board.yaml`
-- Create: `bk-open-framework/boards/bk7259_robot/Kconfig`
-- Create: `bk-open-framework/boards/bk7259_robot/pins.h`
-- Create: `bk-open-framework/boards/bk7259_robot/README_CN.md`
-- Create: `bk-open-framework/components/bk_board/tests/test_capabilities.c`
-
-**Interfaces:**
-- `bk_err_t bk_board_init(const bk_board_config_t *config)`
-- `bool bk_board_has_capability(bk_board_capability_t capability)`
-- `const bk_board_info_t *bk_board_get_info(void)`
-- `bk_err_t bk_board_get_pin(bk_board_pin_id_t id, bk_gpio_pin_t *pin)`
-
-- [ ] **Step 1: Write capability and missing-pin tests**
-- [ ] **Step 2: Run tests to verify failure**
-- [ ] **Step 3: Encode only verified `bk7259_robot` hardware capabilities and pins**
-- [ ] **Step 4: Compile against the locked SDK and verify board metadata**
-- [ ] **Step 5: Commit**
-
-### Task 5: 实现 `bk_net`：配网、连接状态和局域网发现
-
-**Files:**
-- Create: `bk-open-framework/components/bk_net/include/bk_net.h`
-- Create: `bk-open-framework/components/bk_net/include/bk_provision.h`
-- Create: `bk-open-framework/components/bk_net/include/bk_lan.h`
-- Create: `bk-open-framework/components/bk_net/src/bk_net.c`
-- Create: `bk-open-framework/components/bk_net/src/bk_provision.c`
-- Create: `bk-open-framework/components/bk_net/src/bk_lan.c`
-- Create: `bk-open-framework/components/bk_net/Kconfig`
-- Create: `bk-open-framework/components/bk_net/tests/test_net_state.c`
-
-**Interfaces:**
-- `bk_err_t bk_net_start(const bk_net_config_t *config)`
-- `bk_net_state_t bk_net_get_state(void)`
-- `bk_err_t bk_provision_start(const bk_provision_config_t *config)`
-- `bk_err_t bk_lan_start(const bk_lan_config_t *config)`
-- `bk_err_t bk_lan_publish(const bk_device_record_t *record)`
-
-- [ ] **Step 1: Write state-machine tests for connect, disconnect, retry and reprovision**
-- [ ] **Step 2: Run tests to verify failure**
-- [ ] **Step 3: Implement adapters over Armino Wi-Fi/BLE and existing LAN discovery code**
-- [ ] **Step 4: Run host state tests and BK7259 hardware smoke test**
-- [ ] **Step 5: Commit**
-
-### Task 6: 迁移音视频和 UI 为可选框架组件
-
-**Files:**
-- Create: `bk-open-framework/components/bk_media/include/bk_media.h`
-- Create: `bk-open-framework/components/bk_ui/include/bk_ui.h`
-- Create: corresponding `src/`, `Kconfig`, `CMakeLists.txt`, and README files
-- Modify: `bk-open-framework/platforms/bk7259_robot.yaml`
-
-**Interfaces:**
-- Media and UI APIs must depend on `bk_core`/`bk_board`, not on product-specific Agora or robot headers.
-- Every component must have an explicit Kconfig switch and a minimal compile target.
-
-- [ ] **Step 1: Add component API compile tests with all optional features disabled**
-- [ ] **Step 2: Run tests and verify missing component targets fail**
-- [ ] **Step 3: Implement thin adapters over the SDK; only the robot profile may reuse `bk_solution_ai` components**
-- [ ] **Step 4: Build minimal and full-feature configurations separately**
-- [ ] **Step 5: Commit**
-
-### Task 7: 实现 OTA 薄适配层
-
-**Files:**
-- Create: `bk-open-framework/components/bk_ota/include/bk_ota.h`
-- Create: `bk-open-framework/components/bk_ota/src/bk_ota.c`
-- Create: `bk-open-framework/components/bk_ota/Kconfig`
-- Create: `bk-open-framework/components/bk_ota/tests/test_ota_state.c`
-
-**Interfaces:**
-- `bk_ota_start(const bk_ota_config_t *config)` wraps the SDK OTA path only.
-- The first version documents that signing keys, rollback policy and production security remain SDK/product responsibilities.
-
-- [ ] **Step 1: Write OTA state tests and unsupported-security-mode tests**
-- [ ] **Step 2: Implement the thin SDK adapter**
-- [ ] **Step 3: Run compile smoke and state tests**
+- [ ] **Step 1: Write unit tests for manifest schema, tag/commit SHA verification, and minimal profile isolation**
+- [ ] **Step 2: Implement `tools/bk_manifest.py`, `tools/bk_fetch.py`, and `./tools/bk`**
+- [ ] **Step 3: Run `python3 -m pytest tools/tests/ -v` and verify all tests pass (Tier 1 Gate)**
 - [ ] **Step 4: Commit**
 
-### Task 8: 实现外设公共接口
+---
+
+### Task 2: 实现基础契约层 `bk_common`、移植层 `bk_port` 与事件总线 `bk_core_event`
 
 **Files:**
-- Create: `bk-open-framework/components/bk_peripheral/include/bk_peripheral.h`
-- Create: `bk-open-framework/components/bk_peripheral/src/bk_peripheral.c`
-- Create: `bk-open-framework/components/bk_peripheral/Kconfig`
-- Create: `bk-open-framework/components/bk_peripheral/tests/test_peripheral_caps.c`
+- Create: `components/bk_common/include/bk_err.h`
+- Create: `components/bk_common/include/bk_caps.h`
+- Create: `components/bk_port/include/bk_port_os.h`
+- Create: `components/bk_port/include/bk_port_mem.h`
+- Create: `components/bk_port/include/bk_port_cache.h`
+- Create: `components/bk_port/posix_sim/`
+- Create: `components/bk_port/bk7259_v4/`
+- Create: `components/bk_core_event/include/bk_core_event.h`
+- Create: `components/bk_core_event/src/bk_core_event.c`
+- Create: `components/bk_core_event/Kconfig`
+- Create: `components/bk_core_event/CMakeLists.txt`
+- Create: `components/bk_core_event/tests/test_event_loop.c`
 
-**Interfaces:**
-- Peripheral APIs depend on `bk_core`/`bk_board`; missing capabilities return explicit errors.
+**Interfaces & Contracts:**
+- `bk_port_malloc(size, caps, tag)` wraps `os_sram_malloc` / `psram_malloc` / `psram_cache_malloc` on `bk7259_v4` and enforces 64-byte alignment when `BK_MEM_CAP_DMA_ALIGN64` is requested.
+- `bk_port_dcache_clean(addr, len)` / `bk_port_dcache_invalidate(addr, len)` wrap `bk_dcache_clean_for_producer` / `bk_dcache_invalidate_for_consumer` from `ap/middleware/arch/cortex-m/cache.c`.
+- `bk_event_post()` deep-copies payloads (`<= 256B`); `bk_event_loop_deinit()` drains/aborts the queue, joins the worker thread, and frees all subscriber nodes.
 
-- [ ] **Step 1: Write capability and missing-device tests**
-- [ ] **Step 2: Implement thin adapters for verified `bk7259_robot` peripherals**
-- [ ] **Step 3: Run compile smoke and board capability tests**
+- [ ] **Step 1: Write CTest/PyTest suite for `bk_port` memory stats, 64B alignment, and `bk_core_event` ordering, concurrency, and `deinit` thread join**
+- [ ] **Step 2: Implement `bk_common`, `bk_port` (`posix_sim` + `bk7259_v4`), and `bk_core_event`**
+- [ ] **Step 3: Pass Tier 1 (`posix_sim` with ASan/TSan) and Tier 2 (`bk7259_v4` compile check)**
 - [ ] **Step 4: Commit**
 
-### Task 9: 迁移 `bk7259_robot` 参考产品并隔离专有插件
+---
+
+### Task 3: 实现安全存储组件 `bk_storage` 与板级能力层 `bk_board`
 
 **Files:**
-- Create: `bk-open-framework/products/bk7259_robot/CMakeLists.txt`
-- Create: `bk-open-framework/products/bk7259_robot/Kconfig`
-- Create: `bk-open-framework/products/bk7259_robot/main.c`
-- Create: `bk-open-framework/products/bk7259_robot/plugins/agora_adapter.h`
-- Create: `bk-open-framework/products/bk7259_robot/plugins/README_CN.md`
-- Reference only: existing `bk_solution_ai` product sources used as migration input; do not modify upstream repository
+- Create: `components/bk_storage/include/bk_storage.h`
+- Create: `components/bk_storage/src/bk_storage.c`
+- Create: `components/bk_storage/tests/test_storage_security.c`
+- Create: `components/bk_board/include/bk_board.h`
+- Create: `components/bk_board/src/bk_board.c`
+- Create: `boards/bk7259_robot/board.yaml`
+- Create: `components/bk_board/tests/test_board_caps.c`
 
-**Interfaces:**
-- Product main consumes only framework public headers.
-- `agora_adapter.h` defines an optional interface; core product builds without Agora.
+**Interfaces & Contracts:**
+- `bk_storage_set_blob(..., BK_STORAGE_FLAG_SENSITIVE)` encrypts credentials via platform key hook; `bk_storage_erase_ns()` and `bk_storage_factory_reset()` zero-out RAM cache and overwrite Flash records before sector erase.
+- Append-only log record with CRC32 recovers cleanly from simulated mid-write power loss.
+- `boards/bk7259_robot/board.yaml` explicitly marks each peripheral as `verified` or `unverified`; querying or initializing an `unverified` capability returns `BK_ERR_NOT_VERIFIED` or `BK_ERR_NOT_SUPPORTED`.
+- CP template boundary enforced: `minimal` validates against `bk_avdk_smp/projects/app/cp`; `robot` validates against `bk_solution_ai/projects/beken_robot/cp`.
 
-- [ ] **Step 1: Write a dependency inventory and no-plugin minimum-boot spike**
-- [ ] **Step 2: Define the smallest product configuration that boots without Agora**
-- [ ] **Step 3: Move only initialization, network, board and event usage behind framework APIs**
-- [ ] **Step 4: Build no-plugin and plugin-enabled configurations; run the supported path on `bk7259_robot`**
-- [ ] **Step 5: Commit**
+- [ ] **Step 1: Write tests for CRC corruption recovery, power-loss half-record rollback, sensitive credential zeroization, and `unverified` board capability rejection**
+- [ ] **Step 2: Implement `bk_storage` and `bk_board`**
+- [ ] **Step 3: Pass Tier 1 and Tier 2 gates**
+- [ ] **Step 4: Commit**
 
-The no-plugin configuration promises only boot, board initialization and basic networking; it does not promise complete robot functionality.
+---
 
-### Task 10: 分里程碑完成示例、文档、CI 和发布验收
+### Task 4: 实现 `bk_net`（配网状态机、多 AP 凭证、退避重连与 SNTP/TLS 契约）及 M1 示例
 
 **Files:**
-- Create: `bk-open-framework/examples/01_wifi_provision/`
-- Create: `bk-open-framework/examples/02_lan_device/`
-- Create: `bk-open-framework/examples/03_audio_player/`
-- Create: `bk-open-framework/examples/04_camera_stream/`
-- Create: `bk-open-framework/examples/05_peripheral_control/`
-- Create: `bk-open-framework/examples/06_robot_reference/`
-- Create: `bk-open-framework/.github/workflows/build.yml`
-- Create: `bk-open-framework/docs/getting-started/README_CN.md`
-- Create: `bk-open-framework/docs/migration/bk_solution_ai.md`
-- Create: `bk-open-framework/docs/release-checklist.md`
+- Create: `components/bk_net/include/bk_net.h`
+- Create: `components/bk_net/src/bk_net.c`
+- Create: `components/bk_net/src/bk_provision.c`
+- Create: `components/bk_net/src/bk_lan.c`
+- Create: `components/bk_net/tests/test_net_fsm.c`
+- Create: `examples/01_wifi_provision/`
+- Create: `examples/02_lan_device/`
 
-**Interfaces:**
-- Each example declares its platform and enabled components.
-- CI runs manifest checks, host tests, minimal configuration build and full configuration build.
+**Interfaces & Contracts:**
+- Stores up to 5 Wi-Fi credentials in `bk_storage` with `BK_STORAGE_FLAG_SENSITIVE`.
+- Exponential backoff reconnect (`1s..30s` with jitter).
+- Distinguishes `BK_NET_STATE_IP_READY` from `BK_NET_STATE_TIME_SYNCED`; if SNTP fails, surfaces `BK_ERR_NET_TIME_UNSYNCED` and never disables TLS certificate chain or SNI verification in production builds.
 
-- [ ] **Step 1: Deliver M1 examples (`01_wifi_provision`, `02_lan_device`) and minimal build checks**
-- [ ] **Step 2: Deliver M2 media/UI/peripheral/OTA examples and compile checks**
-- [ ] **Step 3: Deliver M3 robot reference and optional plugin documentation**
-- [ ] **Step 4: Run hardware acceptance as a release gate, separately from ordinary CI; record PASS criteria for boot, provisioning, LAN discovery, display, audio, camera, OTA and each verified peripheral in `docs/release-checklist.md`**
-- [ ] **Step 5: Tag framework `v0.1.0` with the upstream pair and evidence recorded in the release checklist**
+- [ ] **Step 1: Write FSM unit tests for connect, auth failure, disconnect backoff, factory reset credential wipe, and SNTP timeout handling**
+- [ ] **Step 2: Implement `bk_net` and M1 examples (`01_wifi_provision`, `02_lan_device`)**
+- [ ] **Step 3: Verify `01_wifi_provision` builds under `bk7259_minimal` without `bk_solution_ai` and passes hardware smoke test on `bk7259_robot`**
+- [ ] **Step 4: Commit**
+
+---
+
+### Task 5: 增量实现外设状态机（`bk_button`, `bk_led_effect`）与单一媒体组件（`bk_audio_session`, `bk_video_frame_pool`, `bk_ui_core`）
+
+**Files:**
+- Create: `components/bk_button/`
+- Create: `components/bk_led_effect/`
+- Create: `components/bk_audio_session/`
+- Create: `components/bk_audio_mixer/`
+- Create: `components/bk_video_frame_pool/`
+- Create: `components/bk_ui_core/`
+- Create: `examples/03_audio_player/`
+- Create: `examples/04_camera_stream/`
+- Create: `examples/05_peripheral_control/`
+
+**Interfaces & Real-Time Contracts:**
+- Deliver and verify one component at a time (do not bundle with AI or OTA):
+  1. `bk_button` (debounce + click/double-click/long-press FSM) and `bk_led_effect` (priority queue).
+  2. `bk_audio_session`: fixed 20ms PCM frame (`16kHz/16-bit/Mono` = 640B), synchronous copy into downlink ringbuffer with explicit timeout/backpressure (`BK_ERR_AUDIO_RINGBUF_FULL`), hardware AEC capability check.
+  3. `bk_audio_mixer`: optional 20ms PCM Ducking/Preempt mixer.
+  4. `bk_video_frame_pool`: 64-byte aligned PSRAM buffers (`BK_FRAME_QUEUE_ALIGN_SIZE = 64U`), atomic `bk_frame_retain`/`bk_frame_release`, explicit `bk_frame_sync_for_device` (`bk_dcache_clean_for_producer`) and `bk_frame_sync_for_cpu` (`bk_dcache_invalidate_for_consumer`), `BK_ERR_BUSY` on `destroy` if `ref_cnt > 0`.
+  5. `bk_ui_core`: recursive mutex `bk_ui_lock(timeout_ms)` / `bk_ui_unlock()` around LVGL calls.
+
+- [ ] **Step 1: Write Tier 1 unit tests for button FSM, LED priority preemption, audio ringbuffer backpressure, 20ms mixer saturation math, and multi-threaded frame pool reference counting**
+- [ ] **Step 2: Implement each component with independent Kconfig switches and verify disabled components add zero bytes to `bk7259_minimal`**
+- [ ] **Step 3: Build and verify examples `03`, `04`, `05` on `bk7259_robot`**
+- [ ] **Step 4: Commit**
+
+---
+
+### Task 6: 分区重规划验证与实现 `bk_ota`（前置媒体挂起与 BL2 安全校验集成）
+
+**Files:**
+- Create: `components/bk_ota/include/bk_ota.h`
+- Create: `components/bk_ota/src/bk_ota.c`
+- Create: `components/bk_ota/Kconfig`
+- Create: `components/bk_ota/tests/test_ota_fsm.c`
+
+**Interfaces & Platform Evidence Prerequisites:**
+- **Prerequisite Gate**: Re-budget `bk7259_robot` partition table (resolving the default `264K` `ota` partition limit in `bk_solution_ai/projects/beken_robot/partitions/bk7259/auto_partitions.csv`) and select the verified SDK OTA backend (`CONFIG_SECURE_OTA_OVERWRITE` or `CONFIG_SECURE_OTA_XIP` with EC-P256 BL2 verification).
+- **Pre-OTA Media Quiesce**: `bk_ota_start()` requests `bk_audio_session` and `bk_video_frame_pool` to suspend within `quiesce_timeout_ms`; if media fails to quiesce, abort immediately with `BK_ERR_OTA_MEDIA_BUSY`.
+- **Integrity & Resume**: Verify `"BK723658"` global header and CRC32 / EC-P256 signature; checkpoint verified offset only at coarse intervals (e.g., 256KB boundaries) to avoid Flash wear.
+
+- [ ] **Step 1: Write Tier 1 tests for media quiesce failure abort (`BK_ERR_OTA_MEDIA_BUSY`), corrupted header/signature rejection, security counter anti-rollback check, and interrupted download resume**
+- [ ] **Step 2: Verify partition table layout and BL2 configuration on `bk7259_robot`**
+- [ ] **Step 3: Implement `bk_ota` and run Tier 4 hardware tests (normal upgrade, bad signature rejection, mid-download power loss)**
+- [ ] **Step 4: Commit**
+
+---
+
+### Task 7: 实现 `bk_ai_agent`（独立 `protocol_xiaozhi` MCP 主路径）、产品策略组件与 `bk7259_robot` 参考工程
+
+**Files:**
+- Create: `components/bk_ai_agent/transport_websocket/`
+- Create: `components/bk_ai_agent/protocol_xiaozhi/`
+- Create: `product_components/bk_motion/`
+- Create: `product_components/bk_robot_face/`
+- Create: `product_components/bk_battery_policy/`
+- Create: `plugins/plugin_agora/`
+- Create: `products/bk7259_robot/`
+- Create: `examples/06_robot_reference/`
+- Modify: `docs/release-checklist.md`
+
+**Interfaces & Protocol Contracts:**
+- `transport_websocket`: RFC 6455 WSS client (Text/Binary frames, Ping/Pong, reconnect).
+- `protocol_xiaozhi`:
+  - Clean-room implementation of the Xiaozhi WebSocket protocol (upstream protocol spec is **MIT licensed**; record attribution in `components/bk_ai_agent/protocol_xiaozhi/NOTICE`).
+  - **20ms -> 60ms Audio Packetization**: Aggregates 3 consecutive 20ms PCM frames (`3 * 320 = 960 samples`) from `bk_audio_session` into a single 60ms Opus frame when `frame_duration: 60` is negotiated in the `hello` handshake; splits incoming 60ms Opus frames back into 3×20ms PCM frames for playback.
+  - **MCP Primary Path**: Implements MCP (`{"type": "mcp", "payload": {"jsonrpc": "2.0", ...}}`) as the sole primary device tool-calling protocol; legacy `iot` messages are excluded by default (`CONFIG_BK_XIAOZHI_LEGACY_IOT_COMPAT=n`).
+- `plugins/plugin_agora`: Optional proprietary RTC/RTM plugin; `products/bk7259_robot` builds and runs full voice/vision/motion interaction in open-source `protocol_xiaozhi` mode without Agora, and optionally switches to Agora when the plugin is enabled.
+
+- [ ] **Step 1: Write wire-format tests for `protocol_xiaozhi` (`hello` handshake, 3×20ms->60ms Opus packetizer, MCP JSON-RPC 2.0 request/response, disconnect recovery) against a local Mock Server**
+- [ ] **Step 2: Implement `transport_websocket`, `protocol_xiaozhi`, `product_components/*`, and optional `plugin_agora`**
+- [ ] **Step 3: Build `products/bk7259_robot` in both open-source Xiaozhi mode (no Agora) and Agora plugin mode**
+- [ ] **Step 4: Execute all Tier 1 ~ Tier 4 gates and record complete evidence in `docs/release-checklist.md`**
+- [ ] **Step 5: Tag `v0.1.0`**
