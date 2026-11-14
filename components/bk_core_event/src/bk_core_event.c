@@ -251,7 +251,7 @@ bk_err_t bk_event_unsubscribe(bk_event_loop_handle_t loop, uint32_t sub_id)
     return BK_ERR_NOT_FOUND;
 }
 
-bk_err_t bk_event_post(bk_event_loop_handle_t loop,
+bk_err_t bk_of_event_post(bk_event_loop_handle_t loop,
                        int32_t family_id,
                        int32_t event_id,
                        const void *payload,

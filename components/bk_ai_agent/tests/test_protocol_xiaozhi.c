@@ -6,7 +6,7 @@
 
 #include "bk_audio_session.h"
 #include "bk_board.h"
-#include "bk_net.h"
+#include "bk_of_net.h"
 #include "bk_port_mem.h"
 #include "bk_port_os.h"
 #include "bk_protocol_xiaozhi.h"
@@ -338,6 +338,8 @@ typedef struct {
     uint8_t rx_buf[512];
     size_t rx_len;
     size_t rx_pos;
+    bool omit_upgrade_header;
+    bool omit_connection_header;
 } mock_illegal_io_t;
 
 static bk_err_t mock_io_connect(const char *host, uint16_t port, uint32_t timeout_ms, void *io_ctx)
@@ -363,17 +365,54 @@ static int mock_io_send(const uint8_t *buf, size_t len, void *io_ctx)
         memcpy(sec_key, k, (size_t)(ke - k));
         char accept_key[64] = {0};
         assert(bk_ws_compute_accept_key(sec_key, accept_key, sizeof(accept_key)) == BK_OK);
+        const char *upgrade = io->omit_upgrade_header ? "" : "Upgrade: websocket\r\n";
+        const char *connection = io->omit_connection_header ? "" : "Connection: Upgrade\r\n";
         int n = snprintf((char *)io->rx_buf,
                          sizeof(io->rx_buf),
                          "HTTP/1.1 101 Switching Protocols\r\n"
-                         "Upgrade: websocket\r\n"
-                         "Connection: Upgrade\r\n"
+                         "%s"
+                         "%s"
                          "Sec-WebSocket-Accept: %s\r\n\r\n",
+                         upgrade,
+                         connection,
                          accept_key);
         io->rx_len = (size_t)n;
         io->rx_pos = 0U;
     }
     return (int)len;
+}
+
+static int mock_io_recv(uint8_t *buf, size_t len, uint32_t timeout_ms, void *io_ctx);
+
+static void test_upgrade_response_header_rejections(void)
+{
+    const bool omit_upgrade[] = {true, false};
+    const bool omit_connection[] = {false, true};
+
+    for (size_t i = 0U; i < 2U; ++i) {
+        mock_illegal_io_t mio;
+        memset(&mio, 0, sizeof(mio));
+        mio.omit_upgrade_header = omit_upgrade[i];
+        mio.omit_connection_header = omit_connection[i];
+        bk_ws_io_ops_t io_ops = {
+            .connect_fn = mock_io_connect,
+            .send_fn = mock_io_send,
+            .recv_fn = mock_io_recv,
+            .close_fn = NULL,
+            .io_ctx = &mio,
+        };
+        bk_ws_transport_config_t cfg = {
+            .uri = "wss://api.tenclass.net/xiaozhi/v1/",
+            .verify_cert_chain = true,
+            .verify_sni = true,
+            .io_ops = &io_ops,
+        };
+        bk_ws_transport_handle_t ws = NULL;
+        assert(bk_ws_transport_create(&cfg, &ws) == BK_OK);
+        assert(bk_ws_transport_connect(ws) == BK_ERR_CORRUPTED);
+        assert(!bk_ws_transport_is_connected(ws));
+        bk_ws_transport_destroy(ws);
+    }
 }
 
 static int mock_io_recv(uint8_t *buf, size_t len, uint32_t timeout_ms, void *io_ctx)
@@ -413,10 +452,10 @@ static void test_rfc6455_illegal_frame_rejections(void)
         mock_illegal_io_t mio;
         memset(&mio, 0, sizeof(mio));
         bk_ws_io_ops_t io_ops = {
-            .connect = mock_io_connect,
-            .send = mock_io_send,
-            .recv = mock_io_recv,
-            .close = NULL,
+            .connect_fn = mock_io_connect,
+            .send_fn = mock_io_send,
+            .recv_fn = mock_io_recv,
+            .close_fn = NULL,
             .io_ctx = &mio,
         };
         int reason = 0;
@@ -657,6 +696,7 @@ static void test_real_socket_ws_handshake_libopus_and_mcp(void)
 int main(void)
 {
     bk_port_reset_mem_stats();
+    test_upgrade_response_header_rejections();
     test_rfc6455_illegal_frame_rejections();
     test_real_socket_ws_handshake_libopus_and_mcp();
 
