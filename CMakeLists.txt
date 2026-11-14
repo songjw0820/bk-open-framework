@@ -26,6 +26,12 @@ add_subdirectory(components/bk_audio_session)
 add_subdirectory(components/bk_audio_mixer)
 add_subdirectory(components/bk_video_frame_pool)
 add_subdirectory(components/bk_ui_core)
+add_subdirectory(components/bk_ai_agent)
+
+add_subdirectory(product_components/bk_motion)
+add_subdirectory(product_components/bk_robot_face)
+add_subdirectory(product_components/bk_battery_policy)
+add_subdirectory(plugins/plugin_agora)
 
 add_executable(test_event_loop components/bk_core_event/tests/test_event_loop.c)
 target_link_libraries(test_event_loop PRIVATE bk_core_event bk_port bk_common)
@@ -69,3 +75,14 @@ add_test(NAME example_04_camera_stream COMMAND example_04_camera_stream)
 add_executable(example_05_peripheral_control examples/05_peripheral_control/main.c)
 target_link_libraries(example_05_peripheral_control PRIVATE bk_button bk_led_effect bk_board bk_port bk_common)
 add_test(NAME example_05_peripheral_control COMMAND example_05_peripheral_control)
+
+add_executable(test_protocol_xiaozhi components/bk_ai_agent/tests/test_protocol_xiaozhi.c)
+target_link_libraries(test_protocol_xiaozhi PRIVATE bk_ai_agent bk_audio_session bk_net bk_board bk_port bk_common)
+add_test(NAME test_protocol_xiaozhi COMMAND test_protocol_xiaozhi)
+
+add_executable(example_06_robot_reference examples/06_robot_reference/main.c)
+target_link_libraries(example_06_robot_reference PRIVATE
+    bk_ai_agent bk_motion bk_robot_face bk_battery_policy plugin_agora
+    bk_ui_core bk_audio_session bk_net bk_storage bk_core_event bk_board bk_port bk_common
+)
+add_test(NAME example_06_robot_reference COMMAND example_06_robot_reference)

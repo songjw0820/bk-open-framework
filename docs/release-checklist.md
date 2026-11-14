@@ -1,7 +1,8 @@
 # BK Open Framework 发布与实机验收清单（Release & Hardware Acceptance Checklist）
 
-> **当前状态声明（Empty Gate Template — NOT YET VERIFIED）**：
-> 本文件当前为**空门禁模板（0 项已验证）**，仅用于定义进入发布所需的验证条目，**不构成任何已通过测试的证据**。在填入真实构建产物路径、字节大小、日志摘要与实机测试记录前，所有条目均视为 **未通过（NOT VERIFIED）**。
+> **当前状态声明（Tier 1 Host Verified · Tier 2/3/4 Target & Hardware Pending）**：
+> - **已验证（Verified on Host）**：远端锁定 SHA、静态许可证审计（[bk_solution_ai-dependency-inventory.md](legal/bk_solution_ai-dependency-inventory.md)）、`./tools/bk` Manifest/Doctor 单测（12/12 PASS）及 **Tier 1 `posix_sim` CTest 全量套件（12/12 PASS，开启 `-Wall -Wextra -Werror -fsanitize=address,undefined` 零内存泄漏）**。
+> - **未验证（NOT VERIFIED — Pending Armino Toolchain & Hardware）**：Tier 2 板端交叉编译与 `all-app.bin` 产物（`not_run_toolchain_unavailable`）、Tier 3/4 `bk7259_robot` 实机验收及 `bk_ota` 暂缓门禁。
 
 ---
 
@@ -9,28 +10,29 @@
 
 | 记录项 | 期望值 / 规范要求 | 实测记录值（待填写） | 状态 |
 |---|---|---|---|
-| 框架发布版本 Tag | `v0.1.0` | `pending` | [ ] |
-| 目标参考板卡 | `bk7259_robot` (BK7259) | `pending` | [ ] |
-| `bk_avdk_smp` Ref | `release/v4.0.1.11` | `pending` | [ ] |
-| `bk_avdk_smp` `tag_object_sha` | `be5e89d4f6b2f6f444727cad5fd0908a8dc93499` | `pending` | [ ] |
-| `bk_avdk_smp` `peeled_commit_sha` | `584b947920c414230f9909375f008e7d6a2c6c6b` | `pending` | [ ] |
-| `bk_solution_ai` Ref (`robot` profile) | `release/v4.0.1.11` | `pending` | [ ] |
-| `bk_solution_ai` `tag_object_sha` | `009c95182de07ae874e39e3d3c24994431bcec70` | `pending` | [ ] |
-| `bk_solution_ai` `peeled_commit_sha` | `a1e865e156e8dc31dfb360219c33a6a6d908ea98` | `pending` | [ ] |
-| 交叉编译工具链版本 | AP `cm55` / CP `cm52` 工具链（记录完整 `--version`） | `pending` | [ ] |
-| 宿主机 OS / 容器镜像摘要 | Linux / `bekencorp/armino-idk` Image Digest | `pending` | [ ] |
-| 许可证与第三方依赖审计 | [bk_solution_ai-dependency-inventory.md](legal/bk_solution_ai-dependency-inventory.md) 全部待核对项清零 | `pending` | [ ] |
+| 框架发布版本 Tag | `v0.1.0` | `pending_target_gate` | [ ] |
+| 目标参考板卡 | `bk7259_robot` (BK7259) | `static_verified_only` | [ ] |
+| `bk_avdk_smp` Ref | `release/v4.0.1.11` | `release/v4.0.1.11` (verified via `gh api`) | [x] |
+| `bk_avdk_smp` `tag_object_sha` | `be5e89d4f6b2f6f444727cad5fd0908a8dc93499` | `be5e89d4f6b2f6f444727cad5fd0908a8dc93499` | [x] |
+| `bk_avdk_smp` `peeled_commit_sha` | `584b947920c414230f9909375f008e7d6a2c6c6b` | `584b947920c414230f9909375f008e7d6a2c6c6b` | [x] |
+| `bk_solution_ai` Ref (`robot` profile) | `release/v4.0.1.11` | `release/v4.0.1.11` (verified via `gh api`) | [x] |
+| `bk_solution_ai` `tag_object_sha` | `009c95182de07ae874e39e3d3c24994431bcec70` | `009c95182de07ae874e39e3d3c24994431bcec70` | [x] |
+| `bk_solution_ai` `peeled_commit_sha` | `a1e865e156e8dc31dfb360219c33a6a6d908ea98` | `a1e865e156e8dc31dfb360219c33a6a6d908ea98` | [x] |
+| 交叉编译工具链版本 | AP `cm55` / CP `cm52` 工具链（记录完整 `--version`） | `not_run_toolchain_unavailable` | [ ] |
+| 宿主机 OS / 容器镜像摘要 | Linux / `bekencorp/armino-idk` Image Digest | `Debian 12 (GCC 12.2.0, CMake 3.25.1, Python 3.11.2) — Host Tier 1 only` | [ ] |
+| 许可证与第三方依赖审计 | [bk_solution_ai-dependency-inventory.md](legal/bk_solution_ai-dependency-inventory.md) 全部待核对项清零 | `Verified static tree at 584b9479 / a1e865e1` | [x] |
 
 ---
 
 ## 2. Tier 1：Host 行为单测门禁（`posix_sim`）
 
-- [ ] **事件总线 (`bk_core_event`)**：订阅/取消订阅、FIFO 投递顺序、队列满超时、反初始化线程回收测试通过（ASan/TSan 零报错）。
-- [ ] **存储与凭证 (`bk_storage`)**：KV 读写、CRC32 损坏自动恢复、断电半写记录丢弃、`BK_STORAGE_FLAG_SENSITIVE` 加密钩子与 `bk_storage_erase_ns()` 内存/Flash 零化测试通过。
-- [ ] **网络状态机 (`bk_net`)**：连接、断线指数退避重连、重复配网、SNTP 超时与 TLS 错误码传播测试通过。
-- [ ] **外设状态机 (`bk_button`, `bk_led_effect`)**：消抖、单击/双击/长按、灯效优先级抢占与恢复测试通过。
-- [ ] **媒体缓冲与混音算术 (`bk_audio_mixer`, `bk_video_frame_pool`)**：20ms PCM 帧混音/Ducking 防溢出、原子引用计数并发安全、帧池耗尽背压策略测试通过。
-- [ ] **小智协议状态机 (`protocol_xiaozhi`)**：Hello 握手、3×20ms PCM 聚合为 60ms Opus 包、WebSocket 断线重连、MCP (`jsonrpc: 2.0`) 工具调用解析测试通过。
+- [x] **事件总线 (`bk_core_event`)**：订阅/取消订阅、FIFO 投递顺序、队列满超时、反初始化线程回收测试通过（`ctest -R test_event_loop`，ASan/UBSan 零报错）。
+- [x] **存储与凭证 (`bk_storage`)**：KV 读写、CRC32 损坏自动恢复、断电半写记录丢弃、`BK_STORAGE_FLAG_SENSITIVE` 加密钩子与 `bk_storage_erase_ns()` 内存/Flash 零化测试通过（`ctest -R test_storage_security`）。
+- [x] **板级能力与健康诊断 (`bk_board`, `bk_health`)**：CP 模板来源隔离（`minimal` vs `robot`）、`unverified` 能力拒绝（`BK_ERR_NOT_VERIFIED`）测试通过（`ctest -R test_board_caps`）。
+- [x] **网络状态机 (`bk_net`)**：连接、断线指数退避重连、5-AP MRU 凭证管理、SNTP 超时与 TLS 错误码传播测试通过（`ctest -R test_net_fsm` + `example_01_wifi_provision` + `example_02_lan_device`）。
+- [x] **外设状态机 (`bk_button`, `bk_led_effect`)**：消抖、单击/双击/长按、灯效优先级抢占与恢复测试通过（`ctest -R test_peripherals_and_media` + `example_05_peripheral_control`）。
+- [x] **媒体缓冲与混音算术 (`bk_audio_mixer`, `bk_video_frame_pool`)**：20ms PCM 帧混音/Ducking 防溢出、64B 对齐 PSRAM 原子引用计数、Cache Clean/Invalidate 统计与 LVGL 递归锁测试通过（`ctest -R test_peripherals_and_media` + `example_03_audio_player` + `example_04_camera_stream`）。
+- [x] **小智协议状态机 (`protocol_xiaozhi`)**：Hello 握手、3×20ms PCM 聚合为 60ms Opus 包、下行 60ms->3×20ms 拆包、MCP (`jsonrpc: 2.0`) 工具调用解析、默认拒绝旧版 `iot` 消息测试通过（`ctest -R test_protocol_xiaozhi` + `example_06_robot_reference`）。
 
 ---
 

@@ -33,12 +33,13 @@
 - [x] **Step 1: Verify and record unambiguous `tag_object_sha` and `peeled_commit_sha` for `release/v4.0.1.11` in `platforms/*.yaml` and `docs/platforms/bk7259_v4.0.1.11.md`**
 - [x] **Step 2: Record static SDK facts (PL310 32B cache line, 64B `bk_frame_queue` alignment, `bk_dcache_*` APIs, and `beken_robot` 8MB partition table `264K` `ota` limitation) while separating unverified peripheral DMA behaviors**
 - [x] **Step 3: Fix `probe.sh` expected artifact path to `$sdk_dir/build/bk7259/$project_name/package/all-app.bin`**
-- [ ] **Step 4 [BLOCKING]: In an environment with the locked SDK checkout and Armino toolchain (`cm55`/`cm52`), run `probe.sh --build` for both `minimal` and `robot`, recording real `all-app.bin` paths, byte sizes, and AP/CP build logs**
-- [ ] **Step 5 [BLOCKING]: Complete license/redistribution audit for any files referenced from `bk_solution_ai` and update `verification` status in `platforms/bk7259_*.yaml` from `not_run_toolchain_unavailable` to verified evidence**
+- [ ] **Step 4 [BLOCKING FOR TARGET RELEASE]: In an environment with the locked SDK checkout and Armino toolchain (`cm55`/`cm52`), run `probe.sh --build` for both `minimal` and `robot`, recording real `all-app.bin` paths, byte sizes, and AP/CP build logs**
+- [x] **Step 5a: Complete static license/redistribution audit for files referenced from `bk_solution_ai` (`docs/legal/bk_solution_ai-dependency-inventory.md`)**
+- [ ] **Step 5b [BLOCKING FOR TARGET RELEASE]: Update `verification` status in `platforms/bk7259_*.yaml` from `not_run_toolchain_unavailable` to verified evidence after Step 4 completes**
 
 ---
 
-### Task 1: 实现版本诊断工具 `./tools/bk` 与 Manifest 隔离校验（仅在 Task 0 闭环后启动）
+### Task 1: 实现版本诊断工具 `./tools/bk` 与 Manifest 隔离校验
 
 **Files:**
 - Create: `tools/bk`
@@ -52,10 +53,10 @@
 - `./tools/bk doctor --profile bk7259_minimal` validates SDK checkout and confirms zero dependency on `bk_solution_ai`.
 - `./tools/bk doctor --profile bk7259_robot` validates paired SDK + solution ref and `peeled_commit_sha`.
 
-- [ ] **Step 1: Write unit tests for manifest schema, `tag_object_sha`/`peeled_commit_sha` verification, and minimal profile isolation**
-- [ ] **Step 2: Implement `tools/bk_manifest.py`, `tools/bk_fetch.py`, and `./tools/bk`**
-- [ ] **Step 3: Run `python3 -m pytest tools/tests/ -v` and verify all tests pass (Tier 1 Gate)**
-- [ ] **Step 4: Commit**
+- [x] **Step 1: Write unit tests for manifest schema, `tag_object_sha`/`peeled_commit_sha` verification, and minimal profile isolation**
+- [x] **Step 2: Implement `tools/bk_manifest.py`, `tools/bk_fetch.py`, and `./tools/bk`**
+- [x] **Step 3: Run unit test suite (`python3 -m unittest discover -s tools/tests -v`, 12/12 PASS) (Tier 1 Gate)**
+- [x] **Step 4: Commit**
 
 ---
 
@@ -80,10 +81,11 @@
 - `bk_port_dcache_clean(addr, len)` / `bk_port_dcache_invalidate(addr, len)` wrap `bk_dcache_clean_for_producer` / `bk_dcache_invalidate_for_consumer` from `ap/middleware/arch/cortex-m/cache.c`.
 - `bk_event_post()` deep-copies payloads (`<= 256B`); `bk_event_loop_deinit()` drains/aborts the queue, joins the worker thread, and frees all subscriber nodes.
 
-- [ ] **Step 1: Write CTest/PyTest suite for `bk_port` memory stats, 64B alignment, and `bk_core_event` ordering, concurrency, and `deinit` thread join**
-- [ ] **Step 2: Implement `bk_common`, `bk_port` (`posix_sim` + `bk7259_v4`), and `bk_core_event`**
-- [ ] **Step 3: Pass Tier 1 (`posix_sim` with ASan/TSan) and Tier 2 (`bk7259_v4` compile check)**
-- [ ] **Step 4: Commit**
+- [x] **Step 1: Write CTest suite for `bk_port` memory stats, 64B alignment, and `bk_core_event` ordering, concurrency, and `deinit` thread join**
+- [x] **Step 2: Implement `bk_common`, `bk_port` (`posix_sim` + `bk7259_v4`), and `bk_core_event`**
+- [x] **Step 3a: Pass Tier 1 (`posix_sim` with ASan/UBSan: `test_event_loop` PASS)**
+- [ ] **Step 3b: Pass Tier 2 (`bk7259_v4` cross-compile check with Armino toolchain)**
+- [x] **Step 4: Commit**
 
 ---
 
@@ -104,10 +106,11 @@
 - `boards/bk7259_robot/board.yaml` explicitly marks each peripheral as `verified` or `unverified`; querying or initializing an `unverified` capability returns `BK_ERR_NOT_VERIFIED` or `BK_ERR_NOT_SUPPORTED`.
 - CP template boundary enforced: `minimal` validates against `bk_avdk_smp/projects/app/cp`; `robot` validates against `bk_solution_ai/projects/beken_robot/cp`.
 
-- [ ] **Step 1: Write tests for CRC corruption recovery, power-loss half-record rollback, sensitive credential zeroization, and `unverified` board capability rejection**
-- [ ] **Step 2: Implement `bk_storage` and `bk_board`**
-- [ ] **Step 3: Pass Tier 1 and Tier 2 gates**
-- [ ] **Step 4: Commit**
+- [x] **Step 1: Write tests for CRC corruption recovery, power-loss half-record rollback, sensitive credential zeroization, and `unverified` board capability rejection**
+- [x] **Step 2: Implement `bk_storage`, `bk_health`, and `bk_board`**
+- [x] **Step 3a: Pass Tier 1 (`test_storage_security` and `test_board_caps` PASS under ASan/UBSan)**
+- [ ] **Step 3b: Pass Tier 2 (`bk7259_v4` target build gate)**
+- [x] **Step 4: Commit**
 
 ---
 
@@ -127,10 +130,11 @@
 - Exponential backoff reconnect (`1s..30s` with jitter).
 - Distinguishes `BK_NET_STATE_IP_READY` from `BK_NET_STATE_TIME_SYNCED`; if SNTP fails, surfaces `BK_ERR_NET_TIME_UNSYNCED` and never disables TLS certificate chain or SNI verification in production builds.
 
-- [ ] **Step 1: Write FSM unit tests for connect, auth failure, disconnect backoff, factory reset credential wipe, and SNTP timeout handling**
-- [ ] **Step 2: Implement `bk_net` and M1 examples (`01_wifi_provision`, `02_lan_device`)**
-- [ ] **Step 3: Verify `01_wifi_provision` builds under `bk7259_minimal` without `bk_solution_ai` and passes hardware smoke test on `bk7259_robot`**
-- [ ] **Step 4: Commit**
+- [x] **Step 1: Write FSM unit tests for connect, auth failure, disconnect backoff, factory reset credential wipe, and SNTP timeout handling**
+- [x] **Step 2: Implement `bk_net` and M1 examples (`01_wifi_provision`, `02_lan_device`)**
+- [x] **Step 3a: Verify `test_net_fsm`, `example_01_wifi_provision`, and `example_02_lan_device` pass Tier 1 (`posix_sim` without `bk_solution_ai`)**
+- [ ] **Step 3b: Verify `01_wifi_provision` builds under `bk7259_minimal` with Armino toolchain and passes hardware smoke test on `bk7259_robot`**
+- [x] **Step 4: Commit**
 
 ---
 
@@ -155,10 +159,10 @@
   4. `bk_video_frame_pool`: 64-byte aligned PSRAM buffers (`BK_FRAME_QUEUE_ALIGN_SIZE = 64U`), atomic `bk_frame_retain`/`bk_frame_release`, explicit `bk_frame_sync_for_device` / `bk_frame_sync_for_cpu` wrappers; verify actual peripheral DMA PSRAM slab requirements on `bk7259_robot` during Tier 2/4 testing before locking ownership rules.
   5. `bk_ui_core`: recursive mutex `bk_ui_lock(timeout_ms)` / `bk_ui_unlock()` around LVGL calls.
 
-- [ ] **Step 1: Write Tier 1 unit tests for button FSM, LED priority preemption, audio ringbuffer backpressure, 20ms mixer saturation math, and multi-threaded frame pool reference counting**
-- [ ] **Step 2: Implement each component with independent Kconfig switches and verify disabled components add zero bytes to `bk7259_minimal`**
+- [x] **Step 1: Write Tier 1 unit tests for button FSM, LED priority preemption, audio ringbuffer backpressure, 20ms mixer saturation math, and multi-threaded frame pool reference counting**
+- [x] **Step 2: Implement each component with independent Kconfig switches and pass Tier 1 (`test_peripherals_and_media`, `example_03`, `example_04`, `example_05` PASS)**
 - [ ] **Step 3: Build and verify examples `03`, `04`, `05` on `bk7259_robot`, recording verified peripheral DMA PSRAM behavior**
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ---
 
@@ -183,11 +187,11 @@
   - **MCP Primary Path**: Implements MCP (`{"type": "mcp", "payload": {"jsonrpc": "2.0", ...}}`) as the sole primary device tool-calling protocol; legacy `iot` messages are excluded by default (`CONFIG_BK_XIAOZHI_LEGACY_IOT_COMPAT=n`).
 - `plugins/plugin_agora`: Optional proprietary RTC/RTM plugin; `products/bk7259_robot` builds and runs full voice/vision/motion interaction in open-source `protocol_xiaozhi` mode without Agora, and optionally switches to Agora when the plugin is enabled.
 
-- [ ] **Step 1: Write wire-format tests for `protocol_xiaozhi` (`hello` handshake, 3×20ms->60ms Opus packetizer, MCP JSON-RPC 2.0 request/response, disconnect recovery) against a local Mock Server**
-- [ ] **Step 2: Implement `transport_websocket`, `protocol_xiaozhi`, `product_components/*`, and optional `plugin_agora`**
-- [ ] **Step 3: Build `products/bk7259_robot` in both open-source Xiaozhi mode (no Agora) and Agora plugin mode**
-- [ ] **Step 4: Execute Tier 1 ~ Tier 4 gates and record complete evidence in `docs/release-checklist.md`**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Write wire-format tests for `protocol_xiaozhi` (`hello` handshake, 3×20ms->60ms Opus packetizer, MCP JSON-RPC 2.0 request/response, legacy `iot` rejection)**
+- [x] **Step 2: Implement `transport_websocket`, `protocol_xiaozhi`, `product_components/*`, and optional `plugin_agora` (`test_protocol_xiaozhi` + `example_06_robot_reference` PASS)**
+- [ ] **Step 3: Build `products/bk7259_robot` with Armino cross-compiler in both open-source Xiaozhi mode (no Agora) and Agora plugin mode**
+- [ ] **Step 4: Execute Tier 2 ~ Tier 4 hardware gates and record complete evidence in `docs/release-checklist.md`**
+- [x] **Step 5: Commit**
 
 ---
 

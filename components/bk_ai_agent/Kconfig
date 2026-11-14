@@ -1,0 +1,11 @@
+menu "BK Open Framework AI Agent Protocols"
+    config BK_OF_AI_AGENT_ENABLE
+        bool "Enable BK Open Framework WebSocket transport and Xiaozhi protocol"
+        default y
+        depends on BK_OF_NET_ENABLE && BK_OF_AUDIO_SESSION_ENABLE
+
+    config BK_XIAOZHI_LEGACY_IOT_COMPAT
+        bool "Enable deprecated legacy 'iot' message compatibility in protocol_xiaozhi"
+        default n
+        depends on BK_OF_AI_AGENT_ENABLE
+endmenu
