@@ -95,8 +95,11 @@ add_executable(test_ota_fsm components/bk_ota/tests/test_ota_fsm.c)
 target_link_libraries(test_ota_fsm PRIVATE bk_ota bk_storage bk_board bk_port bk_common)
 add_test(NAME test_ota_fsm COMMAND test_ota_fsm)
 
+include(components/bk_esp_compat/cmake/bk_esp_idf_compat.cmake)
+add_subdirectory(components/bk_esp_compat/tests/mock_espressif_comp)
+
 add_executable(test_esp_compat components/bk_esp_compat/tests/test_esp_compat.c)
-target_link_libraries(test_esp_compat PRIVATE bk_esp_compat bk_port bk_common)
+target_link_libraries(test_esp_compat PRIVATE mock_espressif_comp bk_esp_compat bk_port bk_common)
 add_test(NAME test_esp_compat COMMAND test_esp_compat)
 
 # Compile & verify ALL BK7259 target code paths (bk_port_bk7259.c + mbedTLS wss:// + <modules/opus.h> + all components & robot product)

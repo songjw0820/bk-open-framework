@@ -655,6 +655,21 @@ int main(void)
     assert(bk_robot_product_mcp_dispatch(
                "tools/call", "{\"name\":\"get_battery_status\"}", mcp_out, sizeof(mcp_out), &robot_app) == BK_OK);
     assert(strstr(mcp_out, "\"soc_pct\"") != NULL);
+    assert(bk_robot_product_mcp_dispatch(
+               "tools/ping", "{}", mcp_out, sizeof(mcp_out), &robot_app) == BK_OK);
+    assert(strstr(mcp_out, "\"unsupported_method\"") != NULL);
+    assert(bk_robot_product_mcp_dispatch(
+               "tools/call", "{\"name\":\"nonexistent\"}", mcp_out, sizeof(mcp_out), &robot_app) == BK_OK);
+    assert(strstr(mcp_out, "\"unknown_tool\"") != NULL);
+    assert(bk_robot_product_mcp_dispatch(
+               "tools/call", "{\"name\":\"set_emotion\"}", mcp_out, sizeof(mcp_out), &robot_app) == BK_ERR_INVALID_ARG);
+    for (int i = 0; i < 4; ++i) {
+        assert(bk_robot_product_tick(&robot_app, 3250U, false, 5000ULL + (uint64_t)i * 100ULL) == BK_OK);
+    }
+    assert(!robot_app.motion_allowed);
+    assert(bk_robot_product_mcp_dispatch(
+               "tools/call", "{\"name\":\"nod_head\"}", mcp_out, sizeof(mcp_out), &robot_app) == BK_OK);
+    assert(strstr(mcp_out, "\"blocked_low_battery\"") != NULL);
     bk_robot_product_deinit(&robot_app);
 
     /* Verify plugin_agora, bk_ota, and bk_esp_compat target symbols */

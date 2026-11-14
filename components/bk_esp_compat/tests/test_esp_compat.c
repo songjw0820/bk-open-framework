@@ -5,6 +5,7 @@
 #include "esp_timer.h"
 #include "iot_button.h"
 #include "led_indicator.h"
+#include "mock_esp_comp.h"
 #include "nvs_flash.h"
 
 #include <assert.h>
@@ -167,6 +168,22 @@ int main(void)
     assert(mstats.current_allocated_bytes == 0U);
     assert(mstats.active_allocations == 0U);
 
-    printf("PASS: test_esp_compat (esp_heap_caps, esp_timer, nvs, esp_event, iot_button ADC, led_indicator)\n");
+    uint8_t mock_flash[4096] = {0};
+    bk_storage_config_t mcfg = {
+        .flash_sim_buf = mock_flash,
+        .flash_sim_size = sizeof(mock_flash),
+    };
+    bk_storage_handle_t mstore = NULL;
+    assert(bk_storage_open(&mcfg, &mstore) == BK_OK);
+    bk_esp_nvs_bind_storage(mstore);
+    assert(mock_esp_comp_ping() == ESP_OK);
+    bk_esp_nvs_bind_storage(NULL);
+    bk_storage_close(mstore);
+
+    bk_port_get_mem_stats(&mstats);
+    assert(mstats.current_allocated_bytes == 0U);
+    assert(mstats.active_allocations == 0U);
+
+    printf("PASS: test_esp_compat (esp_heap_caps, esp_timer, nvs, esp_event, iot_button ADC, led_indicator, idf_component_register)\n");
     return 0;
 }
