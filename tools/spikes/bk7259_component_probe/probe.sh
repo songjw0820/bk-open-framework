@@ -171,7 +171,11 @@ cp -R "$probe_comp_dir" "$project_dir/ap/components/bk_probe_comp"
 cp -R "$probe_comp_dir" "$project_dir/cp/components/bk_probe_comp"
 
 for side_cmake in "$project_dir/ap/CMakeLists.txt" "$project_dir/cp/CMakeLists.txt"; do
-  sed -i 's/armino_component_register(/list(APPEND priv_req bk_probe_comp)\narmino_component_register(/' "$side_cmake"
+  if grep -q 'PRIV_REQUIRES' "$side_cmake"; then
+    sed -i 's/armino_component_register(/list(APPEND priv_req bk_probe_comp)\narmino_component_register(/' "$side_cmake"
+  else
+    sed -i 's/armino_component_register(/list(APPEND priv_req bk_probe_comp)\narmino_component_register(PRIV_REQUIRES "${priv_req}" /' "$side_cmake"
+  fi
 done
 
 check_symbol_in_side() {
