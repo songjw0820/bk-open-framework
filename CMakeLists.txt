@@ -27,11 +27,20 @@ add_subdirectory(components/bk_audio_mixer)
 add_subdirectory(components/bk_video_frame_pool)
 add_subdirectory(components/bk_ui_core)
 add_subdirectory(components/bk_ai_agent)
+add_subdirectory(components/bk_ota)
+add_subdirectory(components/bk_esp_compat)
 
 add_subdirectory(product_components/bk_motion)
 add_subdirectory(product_components/bk_robot_face)
 add_subdirectory(product_components/bk_battery_policy)
 add_subdirectory(plugins/plugin_agora)
+
+add_library(bk_robot_product STATIC products/bk7259_robot/src/bk_robot_product.c)
+target_include_directories(bk_robot_product PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/products/bk7259_robot/include")
+target_link_libraries(bk_robot_product PUBLIC
+    bk_ai_agent bk_motion bk_robot_face bk_battery_policy
+    bk_ui_core bk_audio_session bk_board bk_port bk_common
+)
 
 add_executable(test_event_loop components/bk_core_event/tests/test_event_loop.c)
 target_link_libraries(test_event_loop PRIVATE bk_core_event bk_port bk_common)
@@ -82,10 +91,18 @@ add_test(NAME test_protocol_xiaozhi COMMAND test_protocol_xiaozhi)
 
 add_executable(example_06_robot_reference examples/06_robot_reference/main.c)
 target_link_libraries(example_06_robot_reference PRIVATE
-    bk_ai_agent bk_motion bk_robot_face bk_battery_policy plugin_agora
+    bk_robot_product bk_ai_agent bk_motion bk_robot_face bk_battery_policy plugin_agora
     bk_ui_core bk_audio_session bk_net bk_storage bk_core_event bk_board bk_port bk_common
 )
 add_test(NAME example_06_robot_reference COMMAND example_06_robot_reference)
+
+add_executable(test_ota_fsm components/bk_ota/tests/test_ota_fsm.c)
+target_link_libraries(test_ota_fsm PRIVATE bk_ota bk_storage bk_board bk_port bk_common)
+add_test(NAME test_ota_fsm COMMAND test_ota_fsm)
+
+add_executable(test_esp_compat components/bk_esp_compat/tests/test_esp_compat.c)
+target_link_libraries(test_esp_compat PRIVATE bk_esp_compat bk_port bk_common)
+add_test(NAME test_esp_compat COMMAND test_esp_compat)
 
 # Compile & verify the BK7259 target code paths (bk_port_bk7259.c + mbedTLS wss:// + <modules/opus.h>)
 add_executable(test_bk7259_target_adapter

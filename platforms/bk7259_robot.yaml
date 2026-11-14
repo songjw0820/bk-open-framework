@@ -35,6 +35,7 @@ components:
   - bk_video_frame_pool
   - bk_ui_core
   - bk_ai_agent
+  - bk_esp_compat
 # Deferred target capability: bk_ota is excluded from default component delivery
 # until a re-budgeted partition CSV, measured AP/CP image sizes, OTA package size,
 # BL2 configuration, and OVERWRITE vs XIP strategy selection are committed.

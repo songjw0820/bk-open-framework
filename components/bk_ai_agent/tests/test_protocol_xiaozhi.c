@@ -237,11 +237,13 @@ static void *loopback_ws_server_thread(void *arg)
         assert(server_send_unmasked_frame(cfd, BK_WS_FRAME_BINARY, buf, flen) == 0);
     }
 
-    /* 6. Receive the 2 MCP JSON-RPC 2.0 replies sent during step 7a and 7b */
-    assert(server_read_masked_frame(cfd, &opcode, buf, sizeof(buf), &flen) == 0);
-    assert(opcode == BK_WS_FRAME_TEXT);
-    assert(server_read_masked_frame(cfd, &opcode, buf, sizeof(buf), &flen) == 0);
-    assert(opcode == BK_WS_FRAME_TEXT);
+    /* 6. Receive the 2 MCP JSON-RPC 2.0 replies sent during step 7a and 7b
+     *    plus the 4 voice control frames (listen start, detect, stop, abort) in 7e
+     */
+    for (int i = 0; i < 6; ++i) {
+        assert(server_read_masked_frame(cfd, &opcode, buf, sizeof(buf), &flen) == 0);
+        assert(opcode == BK_WS_FRAME_TEXT);
+    }
 
     /* 7. Send server CLOSE (1000) frame */
     uint8_t close_body[2] = {0x03U, 0xE8U};
@@ -738,6 +740,31 @@ static void test_real_socket_ws_handshake_libopus_and_mcp(void)
     /* 7d. Legacy 'iot' message rejected when enable_legacy_iot_compat == false */
     const char *legacy_iot = "{\"type\":\"iot\",\"commands\":[]}";
     assert(bk_xiaozhi_on_text_frame(xz, legacy_iot, strlen(legacy_iot)) == BK_ERR_NOT_SUPPORTED);
+
+    /* 7e. Xiaozhi voice control frames (listen start/stop/detect, abort, tts, llm emotion, stt) */
+    assert(bk_xiaozhi_send_listen_start(xz, BK_XIAOZHI_LISTEN_MODE_AUTO) == BK_OK);
+    assert(strstr(tap.last_text, "\"type\":\"listen\"") != NULL &&
+           strstr(tap.last_text, "\"state\":\"start\"") != NULL);
+    assert(bk_xiaozhi_send_wake_word_detected(xz, "你好小智") == BK_OK);
+    assert(strstr(tap.last_text, "\"state\":\"detect\"") != NULL);
+    assert(bk_xiaozhi_send_listen_stop(xz) == BK_OK);
+    assert(strstr(tap.last_text, "\"state\":\"stop\"") != NULL);
+
+    const char *stt_msg = "{\"type\":\"stt\",\"text\":\"扭一下头\"}";
+    assert(bk_xiaozhi_on_text_frame(xz, stt_msg, strlen(stt_msg)) == BK_OK);
+    assert(strcmp(bk_xiaozhi_get_last_stt_text(xz), "扭一下头") == 0);
+
+    const char *llm_msg = "{\"type\":\"llm\",\"emotion\":\"happy\",\"text\":\"好的\"}";
+    assert(bk_xiaozhi_on_text_frame(xz, llm_msg, strlen(llm_msg)) == BK_OK);
+    assert(strcmp(bk_xiaozhi_get_last_emotion(xz), "happy") == 0);
+
+    const char *tts_start = "{\"type\":\"tts\",\"state\":\"sentence_start\",\"text\":\"正在点头\"}";
+    assert(bk_xiaozhi_on_text_frame(xz, tts_start, strlen(tts_start)) == BK_OK);
+    assert(bk_xiaozhi_get_tts_state(xz) == BK_XIAOZHI_TTS_SENTENCE_START);
+    assert(strcmp(bk_xiaozhi_get_last_tts_text(xz), "正在点头") == 0);
+
+    assert(bk_xiaozhi_send_abort(xz, "wake_word_detected") == BK_OK);
+    assert(bk_xiaozhi_get_tts_state(xz) == BK_XIAOZHI_TTS_IDLE);
 
     /* 8. Poll server CLOSE (1000) frame and verify disconnect state & callback */
     assert(bk_ws_transport_poll(ws, 2000U) == BK_OK);

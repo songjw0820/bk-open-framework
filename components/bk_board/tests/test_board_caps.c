@@ -45,12 +45,32 @@ static void test_capability_verification_enforcement(void)
 
 int main(void)
 {
+    bk_port_reset_mem_stats();
     test_cp_template_isolation_contract();
     test_capability_verification_enforcement();
 
+    bk_health_thresholds_t thresh = {
+        .warn_allocated_bytes = 512U,
+        .critical_allocated_bytes = 2048U,
+        .max_active_allocations = 4U,
+    };
     bk_health_snapshot_t snap = {0};
-    assert(bk_health_capture(&snap) == BK_OK);
+    assert(bk_health_evaluate(&thresh, &snap) == BK_OK);
+    assert(snap.status == BK_HEALTH_STATUS_OK);
 
-    printf("PASS: test_board_caps (CP template isolation, unverified capability rejection, health snapshot)\n");
+    void *p1 = bk_port_malloc(1024U, BK_MEM_CAP_SRAM, "test_warn");
+    assert(bk_health_evaluate(&thresh, &snap) == BK_OK);
+    assert(snap.status == BK_HEALTH_STATUS_WARNING);
+
+    void *p2 = bk_port_malloc(2048U, BK_MEM_CAP_PSRAM, "test_crit");
+    assert(bk_health_evaluate(&thresh, &snap) == BK_OK);
+    assert(snap.status == BK_HEALTH_STATUS_CRITICAL);
+
+    bk_port_free(p2);
+    bk_port_free(p1);
+    assert(bk_health_evaluate(&thresh, &snap) == BK_OK);
+    assert(snap.status == BK_HEALTH_STATUS_OK);
+
+    printf("PASS: test_board_caps (CP template isolation, unverified capability rejection, health watermark evaluation)\n");
     return 0;
 }

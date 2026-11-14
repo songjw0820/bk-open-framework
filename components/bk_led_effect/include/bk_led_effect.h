@@ -36,9 +36,33 @@ bk_err_t bk_led_set_effect(bk_led_handle_t led,
                            bk_led_priority_t prio,
                            bk_led_pattern_t pattern);
 
+/*
+ * Sets a finite-duration LED effect at the given priority.
+ * When duration_ms elapses during bk_led_tick_ms(), this priority slot
+ * automatically clears and restores the highest remaining lower-priority effect.
+ */
+bk_err_t bk_led_set_effect_timed(bk_led_handle_t led,
+                                 bk_led_priority_t prio,
+                                 bk_led_pattern_t pattern,
+                                 uint64_t now_ms,
+                                 uint32_t duration_ms);
+
 bk_err_t bk_led_clear_effect(bk_led_handle_t led, bk_led_priority_t prio);
 
 bk_led_pattern_t bk_led_get_active_pattern(bk_led_handle_t led);
+
+/*
+ * Advances the LED effect state machine at timestamp `now_ms` and outputs
+ * instantaneous PWM brightness in permille (0..1000):
+ * - OFF:        0
+ * - SOLID:      1000
+ * - SLOW_BLINK: 1000ms period (500ms ON = 1000, 500ms OFF = 0)
+ * - FAST_BLINK: 250ms period  (125ms ON = 1000, 125ms OFF = 0)
+ * - BREATHE:    2000ms triangle/gamma-shaped breathing wave (0..1000..0)
+ */
+bk_err_t bk_led_tick_ms(bk_led_handle_t led,
+                        uint64_t now_ms,
+                        uint16_t *out_brightness_permille);
 
 #ifdef __cplusplus
 }

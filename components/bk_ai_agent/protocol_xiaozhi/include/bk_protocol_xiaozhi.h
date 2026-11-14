@@ -19,6 +19,19 @@ extern "C" {
 #define BK_XIAOZHI_MAX_OPUS_PACKET_BYTES  512U
 #define BK_XIAOZHI_MAX_SESSION_ID_LEN     64U
 
+typedef enum {
+    BK_XIAOZHI_LISTEN_MODE_AUTO = 0,
+    BK_XIAOZHI_LISTEN_MODE_MANUAL,
+    BK_XIAOZHI_LISTEN_MODE_REALTIME,
+} bk_xiaozhi_listen_mode_t;
+
+typedef enum {
+    BK_XIAOZHI_TTS_IDLE = 0,
+    BK_XIAOZHI_TTS_START,
+    BK_XIAOZHI_TTS_SENTENCE_START,
+    BK_XIAOZHI_TTS_STOP,
+} bk_xiaozhi_tts_state_t;
+
 typedef struct bk_xiaozhi_session *bk_xiaozhi_handle_t;
 
 typedef bk_err_t (*bk_xiaozhi_mcp_tool_cb_t)(const char *method,
@@ -63,8 +76,14 @@ bool bk_xiaozhi_is_native_libopus_loaded(bk_xiaozhi_handle_t xz);
 /* Sends client 'hello' JSON requesting 16kHz/1ch/60ms Opus + MCP capability */
 bk_err_t bk_xiaozhi_send_hello(bk_xiaozhi_handle_t xz);
 
+/* Sends Xiaozhi voice control frames ('listen: start/stop/detect' and 'abort') */
+bk_err_t bk_xiaozhi_send_listen_start(bk_xiaozhi_handle_t xz, bk_xiaozhi_listen_mode_t mode);
+bk_err_t bk_xiaozhi_send_listen_stop(bk_xiaozhi_handle_t xz);
+bk_err_t bk_xiaozhi_send_wake_word_detected(bk_xiaozhi_handle_t xz, const char *wake_word);
+bk_err_t bk_xiaozhi_send_abort(bk_xiaozhi_handle_t xz, const char *reason);
+
 /*
- * Handles incoming JSON text frame ('hello' ack, 'mcp' JSON-RPC 2.0 request, etc.).
+ * Handles incoming JSON text frame ('hello' ack, 'tts', 'llm', 'stt', 'mcp' JSON-RPC 2.0, etc.).
  * Strictly bounded by 'len' (does NOT require json_text[len] == '\0').
  */
 bk_err_t bk_xiaozhi_on_text_frame(bk_xiaozhi_handle_t xz,
@@ -92,6 +111,10 @@ bk_err_t bk_xiaozhi_on_binary_opus_60ms(bk_xiaozhi_handle_t xz,
 
 const char *bk_xiaozhi_get_session_id(bk_xiaozhi_handle_t xz);
 uint32_t bk_xiaozhi_get_negotiated_frame_ms(bk_xiaozhi_handle_t xz);
+bk_xiaozhi_tts_state_t bk_xiaozhi_get_tts_state(bk_xiaozhi_handle_t xz);
+const char *bk_xiaozhi_get_last_emotion(bk_xiaozhi_handle_t xz);
+const char *bk_xiaozhi_get_last_stt_text(bk_xiaozhi_handle_t xz);
+const char *bk_xiaozhi_get_last_tts_text(bk_xiaozhi_handle_t xz);
 
 #ifdef __cplusplus
 }

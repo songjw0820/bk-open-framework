@@ -1,0 +1,9 @@
+menu "BK Open Framework: bk_esp_compat (Espressif Component Compatibility Layer)"
+    config BK_OF_ESP_COMPAT_ENABLE
+        bool "Enable ESP-IDF / ESP-IoT-Solution compatibility shim (esp_err, esp_timer, nvs, iot_button, led_indicator)"
+        default y
+        help
+            Provides header and runtime shims mapping classic Espressif Component Registry
+            APIs (esp_err, esp_check, esp_log, esp_heap_caps, esp_timer, esp_event, nvs,
+            iot_button, led_indicator) onto bk-open-framework components.
+endmenu

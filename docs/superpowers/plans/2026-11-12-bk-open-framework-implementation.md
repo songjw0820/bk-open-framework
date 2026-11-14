@@ -195,23 +195,52 @@
 
 ---
 
-### Task 7（专项门禁解封后执行）：完成 Robot OTA 分区重算并交付暂缓目标组件 `bk_ota`
+### Task 7（专项门禁解封后转正）：完成 Robot OTA 候选分区重算与 `bk_ota` 状态机实现
 
-> **Deferred Gate**: `bk_ota` is excluded from default component delivery until all 5 prerequisite artifacts in Step 1 are committed and verified.
+> **Deferred Gate**: `bk_ota` Tier 1 implementation and candidate partition table (`auto_partitions_ota.csv`) are complete and verified via `test_ota_fsm`; promotion from `deferred_target_components` to `components` in `platforms/bk7259_robot.yaml` awaits target hardware image size and BL2 verification.
 
 **Files:**
 - Create: `boards/bk7259_robot/partitions/auto_partitions_ota.csv`
 - Create: `components/bk_ota/include/bk_ota.h`
 - Create: `components/bk_ota/src/bk_ota.c`
 - Create: `components/bk_ota/Kconfig`
+- Create: `components/bk_ota/CMakeLists.txt`
 - Create: `components/bk_ota/tests/test_ota_fsm.c`
 
-- [ ] **Step 1 [PREREQUISITE GATE]: Commit the 5 required OTA evidence artifacts for `bk7259_robot`**:
-  1. Concrete re-budgeted partition CSV (replacing the `264K` `ota` limit);
+- [ ] **Step 1 [PREREQUISITE GATE FOR TARGET PROMOTION]: Commit the 5 required OTA evidence artifacts on target hardware for `bk7259_robot`**:
+  1. Concrete re-budgeted partition CSV (`boards/bk7259_robot/partitions/auto_partitions_ota.csv` committed; target flash test pending);
   2. Measured AP and CP binary sizes;
   3. Measured compressed `ota.bin` package size;
   4. Verified BL2 security configuration;
   5. Explicit single-strategy selection (`CONFIG_SECURE_OTA_OVERWRITE` vs `CONFIG_SECURE_OTA_XIP`).
-- [ ] **Step 2: Write Tier 1 tests for media quiesce failure abort (`BK_ERR_OTA_MEDIA_BUSY`), corrupted header/signature rejection, security counter anti-rollback check, and interrupted download resume**
-- [ ] **Step 3: Implement `bk_ota` and run Tier 4 hardware tests on `bk7259_robot` (normal upgrade, bad signature rejection, mid-download power loss)**
-- [ ] **Step 4: Promote `bk_ota` from `deferred_target_components` to `components` in `platforms/bk7259_robot.yaml` and commit**
+- [x] **Step 2: Write Tier 1 tests for 264KB unbudgeted slot rejection (`BK_ERR_NOT_VERIFIED`), media quiesce failure abort (`BK_ERR_OTA_MEDIA_BUSY`), corrupted header/signature rejection, security counter anti-rollback check, and 64KB interrupted download resume (`test_ota_fsm`)**
+- [x] **Step 3a: Implement `bk_ota` and pass Tier 1 (`test_ota_fsm` PASS under ASan/UBSan)**
+- [ ] **Step 3b: Run Tier 4 hardware tests on `bk7259_robot` (normal upgrade, bad signature rejection, mid-download power loss)**
+- [ ] **Step 4: Promote `bk_ota` from `deferred_target_components` to `components` in `platforms/bk7259_robot.yaml` after Step 1 & Step 3b complete**
+
+---
+
+### Task 8: 实现乐鑫组件注册表（Espressif Component Registry）兼容层 `bk_esp_compat` 与移植指南
+
+**Files:**
+- Create: `components/bk_esp_compat/cmake/bk_esp_idf_compat.cmake`
+- Create: `components/bk_esp_compat/Kconfig`
+- Create: `components/bk_esp_compat/CMakeLists.txt`
+- Create: `components/bk_esp_compat/include/esp_err.h`
+- Create: `components/bk_esp_compat/include/esp_log.h`
+- Create: `components/bk_esp_compat/include/esp_check.h`
+- Create: `components/bk_esp_compat/include/esp_heap_caps.h`
+- Create: `components/bk_esp_compat/include/esp_timer.h`
+- Create: `components/bk_esp_compat/include/esp_event.h`
+- Create: `components/bk_esp_compat/include/nvs.h`
+- Create: `components/bk_esp_compat/include/nvs_flash.h`
+- Create: `components/bk_esp_compat/include/iot_button.h`
+- Create: `components/bk_esp_compat/include/led_indicator.h`
+- Create: `components/bk_esp_compat/src/bk_esp_compat.c`
+- Create: `components/bk_esp_compat/tests/test_esp_compat.c`
+- Create: `docs/espressif-component-porting-guide.md`
+
+- [x] **Step 1: Implement CMake bridge `bk_esp_idf_compat.cmake` translating `idf_component_register()` to `armino_component_register()` / CMake static libraries**
+- [x] **Step 2: Implement ESP-IDF & ESP-IoT-Solution compatibility shims (`esp_err`, `esp_check`, `esp_log`, `esp_heap_caps` with 64B DMA alignment, `esp_timer`, `esp_event`, `nvs_flash`, `iot_button`, `led_indicator`)**
+- [x] **Step 3: Write and pass Tier 1 unit test `test_esp_compat` under ASan/UBSan**
+- [x] **Step 4: Document 4-tier component portability matrix in `docs/espressif-component-porting-guide.md`**

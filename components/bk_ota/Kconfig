@@ -1,0 +1,8 @@
+menu "BK Open Framework: bk_ota (Deferred Target Capability)"
+    config BK_OF_OTA_ENABLE
+        bool "Enable bk_ota secure upgrade state machine (requires verified OTA partition table)"
+        default n
+        help
+            Enables the bk_ota state machine. Keep disabled (n) on default 8MB
+            bk7259_robot partition tables where the 'ota' slot is only 264KB.
+endmenu

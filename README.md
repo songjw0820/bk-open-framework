@@ -8,7 +8,7 @@
 
 | 验证项 | 状态 |
 | --- | --- |
-| Host CTest | 13/13 通过 |
+| Host CTest | 15/15 通过 |
 | Python 工具测试 | 12/12 通过 |
 | Docker ARM AP/CP 目标构建 | 已验证，生成 AP/CP ELF 和 `all-app.bin` |
 | 锁定 SDK SHA 的目标构建 | 待执行 |
@@ -18,13 +18,15 @@
 
 ## 已实现能力
 
-- Wi-Fi 配网、局域网服务、网络状态机、凭据保存和自动重连
-- 音频会话、混音和媒体缓冲区
-- RFC 6455 WebSocket/WSS、证书链和 SNI 配置
-- 原生 libopus 编解码路径
-- Xiaozhi 协议和 MCP JSON-RPC 处理
+- Wi-Fi 配网、局域网服务、网络状态机、凭据保存和自动重连（`bk_net`、`bk_storage`）
+- 音频会话（20ms PCM）、混音（Ducking/Preempt）与 64B 对齐引用计数视频帧池（`bk_audio_session`、`bk_audio_mixer`、`bk_video_frame_pool`）
+- GPIO/ADC 分压阶梯按键状态机与带定时抢占/二次伽马呼吸波形的 LED 灯效引擎（`bk_button`、`bk_led_effect`）
+- RFC 6455 WebSocket/WSS、mbedTLS 证书链和 SNI 配置与原生 `libopus` 3×20ms<->60ms 编解码路径（`transport_websocket`）
+- Xiaozhi 协议（Hello、Listen `start/stop/detect`、Abort、TTS/LLM Emotion/STT、MCP JSON-RPC 2.0）
+- 机器人产品策略组件（`bk_motion` S-Curve 舵机轨迹、`bk_robot_face` 眨眼与口型同步、`bk_battery_policy` 滑动滤波+施密特迟滞）与主控工程（`products/bk7259_robot`）
+- 安全 OTA 状态机与 64KB 断电续传检查点（`bk_ota` + `auto_partitions_ota.csv`，按发布门禁列为 `deferred_target_components`）
+- 乐鑫组件注册表（`https://components.espressif.com/`）兼容层（`bk_esp_compat`：提供 `idf_component_register` CMake 桥接、`esp_err/log/check/heap_caps/timer/event`、`nvs_flash`、`iot_button`、`led_indicator`，详见 [`docs/espressif-component-porting-guide.md`](docs/espressif-component-porting-guide.md)）
 - BK7259 AP/CP 适配和打包路径
-- 机器人产品组件及示例
 
 ## 平台 Profile
 

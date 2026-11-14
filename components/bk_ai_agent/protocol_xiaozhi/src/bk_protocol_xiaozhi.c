@@ -35,6 +35,12 @@ struct bk_xiaozhi_session {
     int16_t uplink_accum[BK_XIAOZHI_OPUS_60MS_PCM_SAMPLES];
     uint32_t accum_20ms_count;
 
+    /* Voice & multimodal state */
+    bk_xiaozhi_tts_state_t tts_state;
+    char last_emotion[32];
+    char last_stt_text[256];
+    char last_tts_text[256];
+
     /* Native libopus state */
     void *dl_handle;
     fn_opus_encoder_create_t fn_enc_create;
@@ -371,6 +377,8 @@ bk_err_t bk_xiaozhi_create(const bk_xiaozhi_config_t *cfg, bk_xiaozhi_handle_t *
     }
     xz->cfg = *cfg;
     xz->negotiated_frame_ms = 60U;
+    xz->tts_state = BK_XIAOZHI_TTS_IDLE;
+    strncpy(xz->last_emotion, "neutral", sizeof(xz->last_emotion) - 1U);
 
     if (xz->cfg.opus_ops == NULL) {
         bk_err_t oerr = init_native_opus(xz);
@@ -420,6 +428,109 @@ bk_err_t bk_xiaozhi_send_hello(bk_xiaozhi_handle_t xz)
     return bk_ws_transport_send_text(xz->cfg.ws, hello_msg, sizeof(hello_msg) - 1U);
 }
 
+bk_err_t bk_xiaozhi_send_listen_start(bk_xiaozhi_handle_t xz, bk_xiaozhi_listen_mode_t mode)
+{
+    if (xz == NULL || !xz->handshake_complete) {
+        return xz == NULL ? BK_ERR_INVALID_ARG : BK_ERR_INVALID_STATE;
+    }
+    const char *mode_str = "auto";
+    if (mode == BK_XIAOZHI_LISTEN_MODE_MANUAL) {
+        mode_str = "manual";
+    } else if (mode == BK_XIAOZHI_LISTEN_MODE_REALTIME) {
+        mode_str = "realtime";
+    }
+    char escaped_sid[BK_XIAOZHI_MAX_SESSION_ID_LEN * 2U];
+    if (!json_escape_string(xz->session_id, escaped_sid, sizeof(escaped_sid))) {
+        return BK_ERR_PAYLOAD_TOO_LARGE;
+    }
+    char msg[256];
+    int n = snprintf(msg,
+                     sizeof(msg),
+                     "{\"session_id\":\"%s\",\"type\":\"listen\",\"state\":\"start\",\"mode\":\"%s\"}",
+                     escaped_sid,
+                     mode_str);
+    if (n < 0 || (size_t)n >= sizeof(msg)) {
+        return BK_ERR_PAYLOAD_TOO_LARGE;
+    }
+    return bk_ws_transport_send_text(xz->cfg.ws, msg, (size_t)n);
+}
+
+bk_err_t bk_xiaozhi_send_listen_stop(bk_xiaozhi_handle_t xz)
+{
+    if (xz == NULL || !xz->handshake_complete) {
+        return xz == NULL ? BK_ERR_INVALID_ARG : BK_ERR_INVALID_STATE;
+    }
+    char escaped_sid[BK_XIAOZHI_MAX_SESSION_ID_LEN * 2U];
+    if (!json_escape_string(xz->session_id, escaped_sid, sizeof(escaped_sid))) {
+        return BK_ERR_PAYLOAD_TOO_LARGE;
+    }
+    char msg[256];
+    int n = snprintf(msg,
+                     sizeof(msg),
+                     "{\"session_id\":\"%s\",\"type\":\"listen\",\"state\":\"stop\"}",
+                     escaped_sid);
+    if (n < 0 || (size_t)n >= sizeof(msg)) {
+        return BK_ERR_PAYLOAD_TOO_LARGE;
+    }
+    return bk_ws_transport_send_text(xz->cfg.ws, msg, (size_t)n);
+}
+
+bk_err_t bk_xiaozhi_send_wake_word_detected(bk_xiaozhi_handle_t xz, const char *wake_word)
+{
+    if (xz == NULL || wake_word == NULL || wake_word[0] == '\0') {
+        return BK_ERR_INVALID_ARG;
+    }
+    if (!xz->handshake_complete) {
+        return BK_ERR_INVALID_STATE;
+    }
+    char escaped_sid[BK_XIAOZHI_MAX_SESSION_ID_LEN * 2U];
+    char escaped_ww[128];
+    if (!json_escape_string(xz->session_id, escaped_sid, sizeof(escaped_sid)) ||
+        !json_escape_string(wake_word, escaped_ww, sizeof(escaped_ww))) {
+        return BK_ERR_PAYLOAD_TOO_LARGE;
+    }
+    char msg[320];
+    int n = snprintf(msg,
+                     sizeof(msg),
+                     "{\"session_id\":\"%s\",\"type\":\"listen\",\"state\":\"detect\",\"text\":\"%s\"}",
+                     escaped_sid,
+                     escaped_ww);
+    if (n < 0 || (size_t)n >= sizeof(msg)) {
+        return BK_ERR_PAYLOAD_TOO_LARGE;
+    }
+    return bk_ws_transport_send_text(xz->cfg.ws, msg, (size_t)n);
+}
+
+bk_err_t bk_xiaozhi_send_abort(bk_xiaozhi_handle_t xz, const char *reason)
+{
+    if (xz == NULL) {
+        return BK_ERR_INVALID_ARG;
+    }
+    if (!xz->handshake_complete) {
+        return BK_ERR_INVALID_STATE;
+    }
+    xz->accum_20ms_count = 0U;
+    xz->tts_state = BK_XIAOZHI_TTS_IDLE;
+
+    const char *rsn = (reason != NULL && reason[0] != '\0') ? reason : "wake_word_detected";
+    char escaped_sid[BK_XIAOZHI_MAX_SESSION_ID_LEN * 2U];
+    char escaped_rsn[128];
+    if (!json_escape_string(xz->session_id, escaped_sid, sizeof(escaped_sid)) ||
+        !json_escape_string(rsn, escaped_rsn, sizeof(escaped_rsn))) {
+        return BK_ERR_PAYLOAD_TOO_LARGE;
+    }
+    char msg[320];
+    int n = snprintf(msg,
+                     sizeof(msg),
+                     "{\"session_id\":\"%s\",\"type\":\"abort\",\"reason\":\"%s\"}",
+                     escaped_sid,
+                     escaped_rsn);
+    if (n < 0 || (size_t)n >= sizeof(msg)) {
+        return BK_ERR_PAYLOAD_TOO_LARGE;
+    }
+    return bk_ws_transport_send_text(xz->cfg.ws, msg, (size_t)n);
+}
+
 bk_err_t bk_xiaozhi_on_text_frame(bk_xiaozhi_handle_t xz,
                                   const char *json_text,
                                   size_t len)
@@ -458,6 +569,46 @@ bk_err_t bk_xiaozhi_on_text_frame(bk_xiaozhi_handle_t xz,
             }
         }
         xz->handshake_complete = true;
+        return BK_OK;
+    }
+
+    if (strcmp(msg_type, "tts") == 0) {
+        const char *st_s = NULL;
+        const char *st_e = NULL;
+        char state_str[32] = {0};
+        if (json_find_top_level_member(doc_start, doc_end, "state", &st_s, &st_e) &&
+            json_decode_string_slice(st_s, st_e, state_str, sizeof(state_str))) {
+            if (strcmp(state_str, "start") == 0) {
+                xz->tts_state = BK_XIAOZHI_TTS_START;
+            } else if (strcmp(state_str, "sentence_start") == 0) {
+                xz->tts_state = BK_XIAOZHI_TTS_SENTENCE_START;
+            } else if (strcmp(state_str, "stop") == 0) {
+                xz->tts_state = BK_XIAOZHI_TTS_STOP;
+            }
+        }
+        const char *txt_s = NULL;
+        const char *txt_e = NULL;
+        if (json_find_top_level_member(doc_start, doc_end, "text", &txt_s, &txt_e)) {
+            (void)json_decode_string_slice(txt_s, txt_e, xz->last_tts_text, sizeof(xz->last_tts_text));
+        }
+        return BK_OK;
+    }
+
+    if (strcmp(msg_type, "llm") == 0) {
+        const char *em_s = NULL;
+        const char *em_e = NULL;
+        if (json_find_top_level_member(doc_start, doc_end, "emotion", &em_s, &em_e)) {
+            (void)json_decode_string_slice(em_s, em_e, xz->last_emotion, sizeof(xz->last_emotion));
+        }
+        return BK_OK;
+    }
+
+    if (strcmp(msg_type, "stt") == 0) {
+        const char *txt_s = NULL;
+        const char *txt_e = NULL;
+        if (json_find_top_level_member(doc_start, doc_end, "text", &txt_s, &txt_e)) {
+            (void)json_decode_string_slice(txt_s, txt_e, xz->last_stt_text, sizeof(xz->last_stt_text));
+        }
         return BK_OK;
     }
 
@@ -680,4 +831,24 @@ const char *bk_xiaozhi_get_session_id(bk_xiaozhi_handle_t xz)
 uint32_t bk_xiaozhi_get_negotiated_frame_ms(bk_xiaozhi_handle_t xz)
 {
     return xz != NULL ? xz->negotiated_frame_ms : 0U;
+}
+
+bk_xiaozhi_tts_state_t bk_xiaozhi_get_tts_state(bk_xiaozhi_handle_t xz)
+{
+    return xz != NULL ? xz->tts_state : BK_XIAOZHI_TTS_IDLE;
+}
+
+const char *bk_xiaozhi_get_last_emotion(bk_xiaozhi_handle_t xz)
+{
+    return xz != NULL ? xz->last_emotion : "";
+}
+
+const char *bk_xiaozhi_get_last_stt_text(bk_xiaozhi_handle_t xz)
+{
+    return xz != NULL ? xz->last_stt_text : "";
+}
+
+const char *bk_xiaozhi_get_last_tts_text(bk_xiaozhi_handle_t xz)
+{
+    return xz != NULL ? xz->last_tts_text : "";
 }

@@ -325,6 +325,28 @@ int main(void)
     assert(bk_ws_transport_poll(ws, 2000U) == BK_OK);
     assert(bk_audio_session_get_queued_frames(audio) == 3U);
 
+    /* 4. Verify robot product components: 4-sample anti-droop battery filter, S-curve preset, and face tick */
+    bk_battery_monitor_t bmon;
+    bk_battery_monitor_init(&bmon);
+    uint8_t soc = 0U;
+    assert(bk_battery_monitor_feed_mv(&bmon, 3900U, false, &blevel, &soc, &allow_motion) == BK_OK);
+    assert(bk_battery_monitor_feed_mv(&bmon, 3900U, false, &blevel, &soc, &allow_motion) == BK_OK);
+    assert(bk_battery_monitor_feed_mv(&bmon, 3900U, false, &blevel, &soc, &allow_motion) == BK_OK);
+    /* Single transient servo-start droop to 3400mV must NOT trigger CRITICAL_CUTOFF (average = 3775mV) */
+    assert(bk_battery_monitor_feed_mv(&bmon, 3400U, false, &blevel, &soc, &allow_motion) == BK_OK);
+    assert(blevel == BK_BATTERY_LEVEL_NORMAL && allow_motion && soc > 35U);
+
+    int16_t s_yaw = 0;
+    int16_t s_pitch = 0;
+    bool seq_done = false;
+    assert(bk_motion_eval_preset(BK_MOTION_PRESET_NOD_YES, 180U, &s_yaw, &s_pitch, &seq_done) == BK_OK);
+    assert(s_pitch == 20 && !seq_done);
+
+    bk_robot_face_frame_t fframe;
+    assert(bk_robot_face_set_emotion_from_str(ui, "thinking") == BK_OK);
+    assert(bk_robot_face_tick_ms(ui, 1000ULL, true, &fframe) == BK_OK);
+    assert(fframe.emotion == BK_ROBOT_EMOTION_THINKING && fframe.mouth_open_pct > 0U);
+
     pthread_join(srv_tid, NULL);
     close(listen_fd);
 
@@ -334,6 +356,6 @@ int main(void)
     bk_ui_core_destroy(ui);
     bk_board_deinit();
 
-    printf("PASS: example 06_robot_reference [Tier 1 Host Loopback WS + Native libopus + MCP; Tier 2/4 Target WSS & Hardware Pending]\n");
+    printf("PASS: example 06_robot_reference [Tier 1 Host Loopback WS + Native libopus + MCP + Robot Face/Motion/Battery]\n");
     return 0;
 }

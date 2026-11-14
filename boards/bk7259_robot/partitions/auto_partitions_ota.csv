@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Candidate Re-budgeted 8MB Partition Layout for bk7259_robot (CONFIG_SECURE_OTA_OVERWRITE)
+# NOTE: Default bk_solution_ai auto_partitions.csv only allocates 264K to 'ota' and omits
+# 'ota_control'. This candidate layout re-budgets primary_ap_app from 6248K -> 4480K
+# (measured baseline ~3700K) to allocate 1960K for compressed 'ota' + 32K for 'ota_control'.
+# Target Gate: Must be verified against actual AP/CP ELF & compressed ota.bin sizes on hardware
+# before promoting bk_ota from deferred_target_components to components in bk7259_robot.yaml.
+Name,Offset,Size,Execute,Read,Write
+bl1_control,0x00000000,4K,FALSE,TRUE,FALSE
+boot_flag,0x00001000,4K,FALSE,TRUE,FALSE
+partition,0x00002000,4K,FALSE,TRUE,FALSE
+bl2,0x00003000,72K,TRUE,TRUE,FALSE
+ota_control,0x00015000,32K,FALSE,TRUE,TRUE
+primary_manifest,0x0001D000,4K,FALSE,TRUE,FALSE
+primary_cp_app,0x0001E000,1440K,TRUE,TRUE,FALSE
+primary_ap_app,0x00186000,4480K,TRUE,TRUE,FALSE
+ota,0x005E6000,1960K,FALSE,TRUE,TRUE
+usr_config,0x007D0000,120K,FALSE,TRUE,TRUE
+easyflash,0x007EE000,8K,FALSE,TRUE,TRUE
+sys_rf,0x007F0000,4K,FALSE,TRUE,TRUE
+sys_net,0x007F1000,4K,FALSE,TRUE,TRUE

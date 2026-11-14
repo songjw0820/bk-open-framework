@@ -42,21 +42,11 @@
 
 ---
 
-## 二、 进入正式组件实现前的强制执行步骤（Next Actions to Unblock Implementation）
+## 二、 当前仓库实施进展与门禁状态（Rev 5 实测基线）
 
-当前仓库由于运行环境未挂载锁定版 `bk_avdk_smp` 与交叉工具链，Task 0 仍处于 `not_run_toolchain_unavailable` 状态。下一步必须按以下顺序在具备工具链的环境中执行：
-
-1. **执行 `minimal` Profile 构建验证**：
-   ```bash
-   ./tools/spikes/bk7259_component_probe/probe.sh --profile minimal --sdk-dir <SDK_DIR> --build
-   ```
-   验证 `<SDK_DIR>/build/bk7259/app/package/all-app.bin` 生成，记录真实二进制大小与 AP/CP 编译日志。
-2. **执行 `robot` Profile 构建验证**：
-   ```bash
-   ./tools/spikes/bk7259_component_probe/probe.sh --profile robot --sdk-dir <SDK_DIR> --solution-dir <SOLUTION_DIR> --build
-   ```
-   验证 `<SDK_DIR>/build/bk7259/beken_robot/package/all-app.bin` 生成，记录 AP/CP 各分区实际大小。
-3. **验证外部空组件注入与 Kconfig 关闭裁剪**：
-   证明外部组件在 AP/CP 编译通过，且 Kconfig 设为 `n` 时不进入 ELF 符号表。
-4. **提交 Task 0 实测证据并解封 Task 1+**：
-   更新 `platforms/bk7259_*.yaml` 与 `docs/platforms/bk7259_v4.0.1.11.md` 中的验证状态，随后正式启动 `tools/bk`、`bk_common`、`bk_port`、`bk_core_event` 的代码实现。
+1. **Tier 1 Host 行为门禁（100% 完成，15/15 CTest + 12/12 Python 单测通过）**：
+   - 全量核心组件（`bk_common`、`bk_port`、`bk_core_event`、`bk_storage`、`bk_health`、`bk_board`、`bk_net`）、外设与媒体组件（`bk_button` 含 ADC 阶梯键、`bk_led_effect` 含定时抢占与 PWM 呼吸波形、`bk_audio_session`、`bk_audio_mixer`、`bk_video_frame_pool`、`bk_ui_core`）、AI 协议组件（`transport_websocket` + `protocol_xiaozhi` 含 Hello/Listen/Abort/TTS/LLM Emotion/STT/MCP/libopus）、暂缓目标组件（`bk_ota` 含 264KB 分区拒绝、媒体挂起、防回滚、64KB 断电续传、CRC32/EC-P256 校验）、产品策略组件（`bk_motion` S-Curve 轨迹、`bk_robot_face` 眨眼/口型同步、`bk_battery_policy` 滑动滤波+施密特迟滞）与机器人主控（`products/bk7259_robot`）均已完成并在 `-Wall -Wextra -Werror -fsanitize=address,undefined` 下通过验证。
+2. **乐鑫组件生态兼容层（`bk_esp_compat`）**：
+   - 已交付 [`components/bk_esp_compat`](../../components/bk_esp_compat/) 与 [`docs/espressif-component-porting-guide.md`](../espressif-component-porting-guide.md)，提供 `idf_component_register` -> `armino_component_register` CMake 桥接器及 `esp_err`、`esp_log`、`esp_check`、`esp_heap_caps`（自动 64B DMA 对齐）、`esp_timer`、`esp_event`、`nvs_flash`、`iot_button`、`led_indicator` 兼容实现（`test_esp_compat` 通过）。
+3. **Tier 2 ~ Tier 4 剩余硬件门禁**：
+   - 已在 `bekencorp/armino-idk:1.5` 容器与当前 SDK checkout 上验证生成 AP/CP ELF 与 `all-app.bin`；下一步需在精确锁定 SHA（`584b947920c414230f9909375f008e7d6a2c6c6b`）上复现容器构建，并在 `bk7259_robot` 实机上完成外设 DMA、音频、WSS 与 OTA 实测验收。

@@ -56,6 +56,28 @@ static void test_button_debounce_and_clicks(void)
     assert(evt == BK_BUTTON_EVT_LONG_PRESS);
 
     bk_button_destroy(btn);
+
+    /* ADC ladder key with Schmitt trigger hysteresis */
+    bk_button_config_t adc_cfg = {
+        .button_id = 2,
+        .debounce_ms = 20,
+        .double_click_window_ms = 200,
+        .long_press_ms = 800,
+        .adc_target_mv = 1650U,
+        .adc_tolerance_mv = 80U,
+    };
+    bk_button_handle_t adc_btn = NULL;
+    assert(bk_button_create(&adc_cfg, &adc_btn) == BK_OK);
+    /* Press at 1680mV (within 1650 +/- 80mV), slight drift to 1745mV (within 80+25=105mV hysteresis) stays pressed */
+    assert(bk_button_feed_adc_mv(adc_btn, 1680U, 100U, &evt) == BK_OK);
+    assert(bk_button_feed_adc_mv(adc_btn, 1745U, 125U, &evt) == BK_OK);
+    assert(bk_button_is_pressed(adc_btn));
+    assert(bk_button_feed_adc_mv(adc_btn, 3300U, 160U, &evt) == BK_OK);
+    assert(bk_button_feed_adc_mv(adc_btn, 3300U, 185U, &evt) == BK_OK);
+    assert(bk_button_feed_adc_mv(adc_btn, 3300U, 400U, &evt) == BK_OK);
+    assert(evt == BK_BUTTON_EVT_SINGLE_CLICK);
+    assert(bk_button_get_repeat_count(adc_btn) == 1U);
+    bk_button_destroy(adc_btn);
 }
 
 static void test_led_priority_preemption(void)
@@ -67,11 +89,18 @@ static void test_led_priority_preemption(void)
     assert(bk_led_set_effect(led, BK_LED_PRIO_LOW, BK_LED_PATTERN_BREATHE) == BK_OK);
     assert(bk_led_get_active_pattern(led) == BK_LED_PATTERN_BREATHE);
 
-    assert(bk_led_set_effect(led, BK_LED_PRIO_CRITICAL, BK_LED_PATTERN_FAST_BLINK) == BK_OK);
+    /* Timed high-priority fast blink for 500ms @ t=1000ms */
+    assert(bk_led_set_effect_timed(led, BK_LED_PRIO_CRITICAL, BK_LED_PATTERN_FAST_BLINK, 1000ULL, 500U) == BK_OK);
     assert(bk_led_get_active_pattern(led) == BK_LED_PATTERN_FAST_BLINK);
 
-    assert(bk_led_clear_effect(led, BK_LED_PRIO_CRITICAL) == BK_OK);
+    uint16_t pwm = 0U;
+    assert(bk_led_tick_ms(led, 1050ULL, &pwm) == BK_OK && pwm == 1000U);
+    assert(bk_led_tick_ms(led, 1150ULL, &pwm) == BK_OK && pwm == 0U);
+
+    /* At t=1500ms, timed CRITICAL effect auto-expires and restores LOW BREATHE */
+    assert(bk_led_tick_ms(led, 1500ULL, &pwm) == BK_OK);
     assert(bk_led_get_active_pattern(led) == BK_LED_PATTERN_BREATHE);
+    assert(bk_led_tick_ms(led, 1000ULL, &pwm) == BK_OK && pwm == 1000U); /* Peak of 2000ms breathe */
 
     bk_led_destroy(led);
 }
