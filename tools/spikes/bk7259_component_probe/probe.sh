@@ -227,7 +227,9 @@ check_symbol_in_side() {
   local found_in_elf=0
   local found_in_any=0
   while IFS= read -r -d '' elf_file; do
-    if "$nm_tool" "$elf_file" 2>/dev/null | grep -q "$probe_symbol"; then
+      # Do not use grep -q here: with pipefail, grep's early exit sends SIGPIPE
+      # to nm and makes a present symbol look absent.
+      if "$nm_tool" "$elf_file" 2>/dev/null | grep "$probe_symbol" >/dev/null; then
       found_in_elf=1
       found_in_any=1
       break
@@ -236,7 +238,7 @@ check_symbol_in_side() {
 
   if [ "$found_in_any" -eq 0 ]; then
     while IFS= read -r -d '' obj_file; do
-      if "$nm_tool" "$obj_file" 2>/dev/null | grep -q "$probe_symbol"; then
+      if "$nm_tool" "$obj_file" 2>/dev/null | grep "$probe_symbol" >/dev/null; then
         found_in_any=1
         break
       fi
