@@ -107,11 +107,11 @@ jobs:
           ./tools/bk fetch --profile "bk7259_${{ matrix.profile }}"
           if [ "${{ matrix.profile }}" = "robot" ]; then
             ./tools/bk doctor --profile bk7259_robot \
-              --sdk-dir .bk-deps/bk_avdk_smp \
-              --solution-dir .bk-deps/bk_solution_ai
+              --sdk-dir external/bk_avdk_smp \
+              --solution-dir external/bk_solution_ai
           else
             ./tools/bk doctor --profile bk7259_minimal \
-              --sdk-dir .bk-deps/bk_avdk_smp
+              --sdk-dir external/bk_avdk_smp
           fi
 
       - name: Pull official Beken build container
@@ -129,9 +129,9 @@ jobs:
         if: steps.filter.outputs.run == 'true'
         run: |
           if [ "${{ matrix.profile }}" = "robot" ]; then
-            pkg_dir=".bk-deps/bk_avdk_smp/build/bk7259/beken_robot/package"
+            pkg_dir="external/bk_avdk_smp/build/bk7259/beken_robot/package"
           else
-            pkg_dir=".bk-deps/bk_avdk_smp/build/bk7259/app/package"
+            pkg_dir="external/bk_avdk_smp/build/bk7259/app/package"
           fi
           mkdir -p "dist/${{ matrix.profile }}"
           cp "$pkg_dir/all-app.bin" "dist/${{ matrix.profile }}/all-app.bin"
