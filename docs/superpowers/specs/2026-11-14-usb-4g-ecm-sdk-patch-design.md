@@ -29,12 +29,12 @@
 
 ## 3. 设计原则
 
-1. 方案仓库不复制 SDK 源码，不直接修改用户指定的 `SDK_DIR`。
+1. `bk-open-framework` 不复制 SDK 源码，不直接修改用户指定的 `SDK_DIR`。
 2. SDK patch 必须绑定明确的 SDK commit、文件校验值和 patch 顺序。
 3. USB 控制器修复留在 SDK patch 中，模组 AT 和业务逻辑留在方案组件中。
 4. 板级差异统一放在 `boards/<board>/`，示例工程只声明目标板并消费板级配置。
 5. 构建失败时必须在 patch 阶段失败，不能静默使用未打补丁的 SDK。
-6. 生成的临时 SDK 工作区可删除，不能提交到方案仓库。
+6. 生成的临时 SDK 工作区可删除，不能提交到 `bk-open-framework`。
 7. 默认只支持一个模组 profile；扩展其他模组使用 profile 接口，不复制整个应用。
 
 ## 4. 参考实现基线
@@ -50,14 +50,14 @@
 
 | 参考实现内容 | 迁移目标 | 处理方式 |
 |---|---|---|
-| `projects/multimedia/usb_4g_ecm/ap/modem_at.c` | `components/modem_ecm/src/modem_at.c` | 提取为公共 AT 管理层 |
-| `projects/multimedia/usb_4g_ecm/ap/usb_modem_at.c` | `components/modem_ecm/src/usb_modem_at.c` | 提取为公共 vendor AT 传输层 |
-| `modem_ecm_cfg.c` | `components/modem_ecm/src/modem_ecm_cfg.c` + profile | 将 Lierda 命令与通用接口分离 |
-| `modem_monitor.c` | `components/modem_ecm/src/modem_monitor.c` | 作为可选监控组件 |
+| `projects/multimedia/usb_4g_ecm/ap/modem_at.c` | `components/bk_modem_ecm/src/modem_at.c` | 提取为公共 AT 管理层 |
+| `projects/multimedia/usb_4g_ecm/ap/usb_modem_at.c` | `components/bk_modem_ecm/src/usb_modem_at.c` | 提取为公共 vendor AT 传输层 |
+| `modem_ecm_cfg.c` | `components/bk_modem_ecm/src/modem_ecm_cfg.c` + profile | 将 Lierda 命令与通用接口分离 |
+| `modem_monitor.c` | `components/bk_modem_ecm/src/modem_monitor.c` | 作为可选监控组件 |
 | `net_check.c`、`speed_test.c` | `examples/usb_4g_ecm/` | 保留为示例工具，不进入核心组件 |
 | AP 启动顺序 | `examples/usb_4g_ecm/app/ap_main.c` | 保留 `lwIP → AT → USB Host` 顺序 |
 | SDK USB/LwIP/MUSB 改动 | `sdk_patches/bk_avdk_smp/patches/` | 重新整理为可应用 patch |
-| `test/host` | `components/modem_ecm/test/host` | 迁移为公共组件回归测试 |
+| `test/host` | `components/bk_modem_ecm/test/host` | 迁移为公共组件回归测试 |
 
 参考分支中的主要实现阶段包括：
 
@@ -91,15 +91,15 @@ a66f74903  stability and host test coverage
 
 ### 方案 B：构建时应用 SDK patch（选定）
 
-方案仓库保存 patch 和 patch manifest，构建时从干净 SDK 创建临时工作区并应用 patch。
+`bk-open-framework` 保存 patch 和 patch manifest，构建时从干净 SDK 创建临时工作区并应用 patch。
 
-优点：方案仓库不带 SDK，修改可审查、可回滚、可绑定版本，适合开源交付。
+优点：`bk-open-framework` 不带 SDK，修改可审查、可回滚、可绑定版本，适合开源交付。
 
 缺点：构建流程比普通 `make` 多一个准备阶段，SDK 升级必须重新验证 patch。
 
 ### 方案 C：依赖外部 SDK fork
 
-方案仓库不带 SDK，直接要求用户使用已经打过补丁的外部 SDK fork。
+`bk-open-framework` 不带 SDK，直接要求用户使用已经打过补丁的外部 SDK fork。
 
 优点：构建简单。
 
@@ -121,7 +121,7 @@ bk-open-framework/
 │           ├── auto_partitions.csv
 │           └── ram_regions.csv
 ├── components/
-│   └── modem_ecm/
+│   └── bk_modem_ecm/
 │       ├── CMakeLists.txt
 │       ├── Kconfig
 │       ├── include/
@@ -155,10 +155,11 @@ bk-open-framework/
 │           ├── 0004-usb-cdc-ecm-lwip-teardown.patch
 │           └── 0005-usb-cdc-ecm-no-string-descriptor.patch
 ├── tools/
+│   ├── bk_manifest.py
+│   ├── bk_fetch.py
 │   └── sdk_patch/
 │       ├── apply_sdk_patches.py
-│       ├── prepare_sdk_workspace.sh
-│       └── build_with_sdk_patch.sh
+│       └── prepare_sdk_workspace.sh
 └── docs/
     └── usb-4g-ecm/
         ├── hardware.md
@@ -168,7 +169,7 @@ bk-open-framework/
 
 ## 7. SDK Patch 设计
 
-### 6.1 Patch 0001：CDC-ECM 编译接入
+### 7.1 Patch 0001：CDC-ECM 编译接入
 
 修改 SDK：
 
@@ -186,7 +187,7 @@ ap/include/components/cherryusb/usb_config.h
 - 保持默认配置为关闭，避免影响其他工程；
 - 加入 `CONFIG_USB_HOST_FIFO_LAYOUT_4BULK` 配置项。
 
-### 6.2 Patch 0002：MUSB URB 生命周期
+### 7.2 Patch 0002：MUSB URB 生命周期
 
 修改：
 
@@ -203,7 +204,7 @@ ap/components/bk_usb/CherryUSB/class/hub/usbh_hub.c
 - 重新枚举前由 hub 重新打开 submit gate；
 - 防止旧设备 URB 提交到新设备 pipe。
 
-### 6.3 Patch 0003：4-bulk FIFO
+### 7.3 Patch 0003：4-bulk FIFO
 
 为以下四个端点提供独立 MPS-512 slot：
 
@@ -220,7 +221,7 @@ AT bulk OUT
 - 保留默认布局作为其他工程的默认行为；
 - 在 patch README 中说明该布局不适合大等时端点，例如 UVC/UAC。
 
-### 6.4 Patch 0004：ECM lwIP teardown
+### 7.4 Patch 0004：ECM lwIP teardown
 
 修改：
 
@@ -236,7 +237,16 @@ ap/components/bk_usb/CherryUSB/class/cdc/usbh_cdc_ecm.c
 - `netif_add()`、`dhcp_start()`、线程创建失败时反向回滚；
 - 收包缓存使用 PSRAM custom pbuf，避免 TCP 长窗口耗尽 SRAM pbuf pool。
 
-### 6.5 Patch 0005：无字符串描述符和连接通知
+PSRAM custom pbuf 必须满足：
+
+- 结构体和 payload 按 BK7259 cache line（32 bytes）对齐；
+- USB DMA 写入前后执行 SDK 要求的 cache clean/invalidate，或明确使用 non-cacheable PSRAM 区域；
+- custom free callback 只释放本次 frame 的 PSRAM 块，不释放 USB RX 静态 buffer；
+- 对 `LWIP_PBUF_POOL_SIZE=48`、`LWIP_TCP_WND=65535`、ECM RX buffer、AT buffer、线程栈和响应缓存做峰值预算。
+
+板级验收须记录 AP SRAM、PSRAM、IRAM、DTCM 的 map 统计和运行时 high-water mark，不能只记录镜像大小。
+
+### 7.5 Patch 0005：无字符串描述符和连接通知
 
 内容：
 
@@ -245,15 +255,45 @@ ap/components/bk_usb/CherryUSB/class/cdc/usbh_cdc_ecm.c
 - 在通知丢失时仍能启动数据路径；
 - 避免 USB 模组无字符串描述符导致枚举失败。
 
-## 8. Patch Manifest
+## 8. 平台 Manifest 与 SDK Patch
 
-`manifest.yaml` 示例：
+SDK 依赖必须复用框架现有的 `platforms/*.yaml`、`tools/bk_manifest.py`、`tools/bk_fetch.py` 和 `dbuild.sh`，不能再引入第二套独立的 SDK 锁定格式。
+
+新增平台 profile 时，沿用现有字段：
 
 ```yaml
-sdk_repo: https://github.com/bekencorp/bk_avdk_smp.git
-sdk_commit: 24cce68adccebec25a7c3bb22e0d1de00f0da5cb
+name: bk7259_usb_4g_ecm
+chip: BK7259
+board: bk7259_qfn128b_evb_v1
+profile: minimal
+sdk:
+  repository: https://github.com/bekencorp/bk_avdk_smp.git
+  ref: release/v4.0.1.11
+  tag_object_sha: <locked-tag-object-sha>
+  peeled_commit_sha: <locked-peeled-commit-sha>
+solution: null
+cp_template:
+  source: sdk
+  path: projects/app/cp
+sdk_patches:
+  manifest: sdk_patches/bk_avdk_smp/manifest.yaml
+  base_peeled_commit_sha: <same-as-sdk-peeled-commit-sha>
+components:
+  - bk_common
+  - bk_port
+  - bk_core_event
+  - bk_board
+  - bk_net
+  - bk_modem_ecm
+```
+
+`tools/bk_manifest.py` 需要把 `sdk_patches` 作为可选字段校验：patch 基线必须等于 `sdk.peeled_commit_sha`，patch 文件和顺序必须来自框架仓库。不要新增裸 `sdk_commit` 字段；必须沿用 `tag_object_sha` 和 `peeled_commit_sha`。
+
+`sdk_patches/bk_avdk_smp/manifest.yaml` 只描述 patch 集合：
+
+```yaml
+base_peeled_commit_sha: <locked-peeled-commit-sha>
 patch_format: git-format-patch
-patch_dir: patches
 patches:
   - 0001-usb-build-enable-cdc-ecm.patch
   - 0002-usb-musb-urb-lifetime.patch
@@ -262,67 +302,54 @@ patches:
   - 0005-usb-cdc-ecm-no-string-descriptor.patch
 ```
 
-实际提交前应将 `sdk_commit` 更新为经过构建和板测的锁定版本，不能使用浮动分支名。
-
-可选加入 SHA-256：
-
-```yaml
-source_sha256: <clean-sdk-archive-sha256>
-patch_sha256:
-  0001-usb-build-enable-cdc-ecm.patch: <sha256>
-```
+`dbuild.sh --profile usb_4g_ecm` 通过统一的 `tools/bk` 流程完成 SDK 校验、临时工作区、patch 应用、板级文件注入和官方 Docker 构建。
 
 ## 9. 构建流程
 
-### 8.1 输入
+### 9.1 输入
 
 ```text
 SDK_DIR       原始、干净的 bk_avdk_smp 路径
 EXAMPLE       usb_4g_ecm
 BOARD         bk7259_qfn128b_evb_v1
 TARGET        bk7259
-PATCH_MANIFEST sdk_patches/bk_avdk_smp/manifest.yaml
+PLATFORM      bk7259_usb_4g_ecm
 ```
 
-### 8.2 准备临时 SDK
+### 9.2 准备临时 SDK
 
 ```text
 检查 SDK_DIR 存在
     ↓
 读取 SDK HEAD
     ↓
-校验是否等于 manifest.sdk_commit
+校验是否等于平台 manifest 的 peeled_commit_sha
     ↓
 检查 SDK 工作区无未提交修改
     ↓
-创建临时目录 .build/sdk/bk_avdk_smp
+创建位于 Docker 挂载根目录内的临时工作区
     ↓
-git archive 或 rsync 复制 SDK
+使用 git worktree 或保留完整 .git 的 clone --shared 创建 SDK 工作区
     ↓
-按 manifest 顺序 git apply --3way
+先执行 git apply --check，再按 manifest 顺序 git apply
     ↓
-执行 patch 自检
+执行 patch 自检和 board/example 注入检查
 ```
 
-### 8.3 构建
+禁止使用不带 `.git` 的 `git archive`/普通 `rsync` 后再调用 `git apply --3way`。如果不保留 Git 对象库，只能使用 `git apply --check` + `git apply`，不能声称执行了三方合并。
+
+临时工作区必须在 Docker 挂载根目录下自包含生成，不能依赖容器内不可见的宿主机绝对路径或软链接。
+
+### 9.3 构建
 
 ```bash
-./tools/sdk_patch/build_with_sdk_patch.sh \
-    --sdk-dir /path/to/bk_avdk_smp \
-    --example usb_4g_ecm \
-    --board bk7259_qfn128b_evb_v1 \
-    --soc bk7259
+./tools/bk fetch --profile bk7259_usb_4g_ecm
+./dbuild.sh --profile usb_4g_ecm
 ```
 
-脚本必须导出：
+`dbuild.sh` 必须把 patched SDK 路径传给现有 `probe.sh`/官方 Docker 构建入口，并在日志中输出 SDK peeled SHA、patch 列表和 patch hash。
 
-```bash
-SDK_DIR=<temporary-patched-sdk>
-```
-
-然后调用现有项目构建入口。
-
-### 8.4 构建失败条件
+### 9.4 构建失败条件
 
 以下任一情况必须立即失败：
 
@@ -332,7 +359,8 @@ SDK_DIR=<temporary-patched-sdk>
 - patch 应用后关键文件校验不一致；
 - `CONFIG_USBH_CDC_ECM` 未生效；
 - `CONFIG_USB_HOST_FIFO_LAYOUT_4BULK` 未生效；
-- 构建使用了原始 SDK 路径而不是临时路径。
+- board 配置未注入临时 SDK；
+- 构建使用了原始 SDK 路径而不是临时 patched SDK。
 
 ## 10. 新板工程配置
 
@@ -340,10 +368,25 @@ SDK_DIR=<temporary-patched-sdk>
 
 本设计使用的板级证据来自以下原理图，后续实施无需重复解析原始 PDF：
 
-- 文件：`/Users/soong/Documents/work/ai_work/armino/bk7259/SCH-BK7259_QFN128B_12.3X12.3_EVB_V1.0.pdf`；
+- 文件：`SCH-BK7259_QFN128B_12.3X12.3_EVB_V1.0.pdf`，BK7259 QFN128B EVB V1.0 原理图；
 - 原理图标题：`BK7259_QFN128B`；
 - 相关页：第 1 页 `BK7259_QFN128B_Main`，第 4 页 `BK7259_QFN128B_Camera`；
 - 芯片封装：BK7259 QFN128B 12.3 x 12.3。
+
+`boards/bk7259_qfn128b_evb_v1/board.yaml` 至少声明：
+
+```yaml
+name: bk7259_qfn128b_evb_v1
+chip: BK7259
+usb_host: true
+usb_device: false
+usb_vbus_control_gpio: 32
+usb_vbus_active_level: 1
+usb_connector: USB-A_FEMALE
+supports_uvc: false
+```
+
+`supports_uvc: false` 只表示 `usb_4g_ecm` 这个 board profile 的资源选择；原理图上的 USB-A 硬件仍可被其他 profile 配置为 UVC，但不能与 4-bulk 4G profile 同时启用。
 
 已确认的硬件连接：
 
@@ -434,11 +477,11 @@ CONFIG_USBH_UVC=n
 CONFIG_USB_CAMERA=n
 ```
 
-### 9.2 GPIO
+### 10.5 GPIO
 
 GPIO32 必须为普通输出，USB Host 打开时拉高，关闭时拉低。
 
-### 9.3 分区
+### 10.6 分区
 
 沿用 BK7259 8M/16M 的对应分区模板，根据实际 AP 镜像大小确认：
 
@@ -451,9 +494,53 @@ GPIO32 必须为普通输出，USB Host 打开时拉高，关闭时拉低。
 
 不能直接假定机器人项目的大型多媒体分区适合该 Host 示例。
 
+### 10.7 CP（CM52）配置
+
+BK7259 为 AP + CP 双核。本示例的 USB、lwIP 和 modem 业务全部运行在 AP；CP 不参与 USB 枚举和 AT 收发，但仍必须提供可构建的 CP 模板。
+
+平台 manifest 固定使用：
+
+```yaml
+cp_template:
+  source: sdk
+  path: projects/app/cp
+```
+
+如果 `boards/bk7259_qfn128b_evb_v1/` 提供 CP 覆盖文件，必须显式列出：
+
+```text
+boards/bk7259_qfn128b_evb_v1/cp/defconfig
+boards/bk7259_qfn128b_evb_v1/cp/usr_gpio_cfg.h
+```
+
+CP 的 GPIO 表不得把 GPIO32/P32 配置为 DVP/JPEG/UVC 或其他输出；GPIO32 的 VBUS 控制权只属于 AP。构建验收必须同时检查 AP 和 CP 的 GPIO 配置没有重复所有权。
+
+### 10.8 Board 注入点
+
+`boards/bk7259_qfn128b_evb_v1/` 不是独立的 Armino 工程。构建适配器必须在临时 SDK 中完成以下映射：
+
+```text
+boards/<board>/defconfig
+    → SDK project AP defconfig overlay
+boards/<board>/usr_gpio_cfg.h
+    → SDK project AP GPIO header
+boards/<board>/cp/defconfig
+    → SDK CP defconfig overlay（如存在）
+boards/<board>/cp/usr_gpio_cfg.h
+    → SDK CP GPIO header（如存在）
+boards/<board>/partitions/*.csv
+    → SDK project partitions/<soc>/
+examples/usb_4g_ecm/app/*.c
+    → SDK project AP source list
+```
+
+注入过程必须打印源文件、目标文件和 SHA-256，并在注入后检查 AP/CP 工程的 `CMakeLists.txt`、defconfig、GPIO 表和分区表均来自同一 board profile。不能把完整 `Makefile` 或第二套 Armino 构建入口放进 `examples/`。
+
+`bk_modem_ecm` 需要在根 `CMakeLists.txt` 中注册为 host component，并在平台 manifest 的 `components` 列表中启用；其 SDK 目标侧 source 列表由 example 适配器注入。
+
 ## 11. 应用接口
 
-### 10.1 初始化
+### 11.1 初始化
 
 ```c
 bk_err_t modem_ecm_init(const struct modem_profile *profile);
@@ -461,15 +548,17 @@ bk_err_t modem_ecm_start(void);
 bk_err_t modem_ecm_stop(void);
 ```
 
-### 10.2 状态查询
+### 11.2 状态查询
 
 ```c
 bool modem_ecm_is_online(void);
-bk_err_t modem_ecm_get_ip(ip4_addr_t *ip);
+bk_err_t modem_ecm_get_ip(uint32_t *ipv4_addr_be);
 bk_err_t modem_ecm_get_signal(struct modem_signal *signal);
 ```
 
-### 10.3 AT 请求
+公共头文件不得暴露 `ip4_addr_t`、lwIP socket 或其他协议栈私有类型。网络地址使用框架约定的 `uint32_t ipv4_addr_be`，与 `bk_net`/`bk_of_net.h` 保持一致，使 `bk_modem_ecm` 可以在 `posix_sim` 主机测试中编译。
+
+### 11.3 AT 请求
 
 ```c
 int modem_at_request(const char *cmd,
@@ -478,9 +567,9 @@ int modem_at_request(const char *cmd,
                      uint32_t timeout_ms);
 ```
 
-第一阶段可以保留同步 API；第二阶段增加请求队列和异步完成回调。
+第一阶段即采用内部串行请求队列：外部 API 可以保持同步阻塞语义，但所有请求必须进入同一个 worker，由 worker 独占 USB AT 通道。CLI、ECM 配置和 `modem_monitor` 不得直接并发写 bulk OUT，也不得把“第二阶段再加队列”作为前置条件。
 
-### 10.4 事件
+### 11.4 事件
 
 ```c
 typedef enum {
@@ -493,6 +582,17 @@ typedef enum {
 } modem_event_t;
 ```
 
+`modem_event_t` 不直接成为独立业务事件总线。组件通过适配层映射到 `bk_core_event`，至少提供：
+
+```text
+MODEM_EVENT_DHCP_BOUND → BK_NET_EVT_IP_READY
+MODEM_EVENT_ONLINE     → 4G online event with netif identity
+MODEM_EVENT_OFFLINE    → network lost event
+MODEM_EVENT_RECOVERING → recovery event
+```
+
+`bk_net` 继续负责统一的网络状态、DNS/SNTP/TLS 前置条件；`bk_modem_ecm` 只负责模组链路和 ECM netif，不复制第二套网络状态机。
+
 ## 12. 启动时序
 
 ```text
@@ -503,6 +603,12 @@ net_ipv4stack_init
 modem_ecm_init(profile)
   ↓
 注册状态回调和 CLI
+  ↓
+GPIO32 = low，确认 VBUS 关闭
+  ↓
+GPIO32 = high，打开 USB-A VBUS
+  ↓
+等待模组冷启动（默认 2 秒，配置范围 1~5 秒）
   ↓
 bk_usb_open(USB_HOST_MODE)
   ↓
@@ -521,29 +627,54 @@ DNS/TCP 检测
 MODEM_EVENT_ONLINE
 ```
 
+枚举超时必须执行有限次数重试。恢复策略为：
+
+```text
+USB disconnect / AT 连续超时 / 网络探测连续失败
+    ↓
+停止新 AT 请求
+    ↓
+停止 DHCP 和 ECM netif
+    ↓
+等待 AT RX 线程、URB、class disconnect 完成
+    ↓
+GPIO32 = low，硬断电 500 ms
+    ↓
+GPIO32 = high，等待 2 秒冷启动
+    ↓
+重新打开 USB Host 并枚举
+```
+
+硬断电次数、冷启动延时和枚举重试次数必须是 board/profile 配置项，并记录到状态日志；不能在 USB disconnect 回调中直接阻塞执行硬复位。
+
 ## 13. 验证计划
 
-### 12.1 静态验证
+### 13.1 静态验证
 
 ```bash
-python3 tools/sdk_patch/apply_sdk_patches.py --check
+./tools/bk doctor --profile bk7259_usb_4g_ecm
+python3 -m unittest discover -s tools/tests -v
 ```
 
 检查：
 
-- SDK commit；
+- SDK tag object SHA 和 peeled commit SHA；
 - patch 顺序；
 - 关键符号；
+- board 和 CP 模板注入；
 - 无意外 SDK 文件提交。
 
-### 12.2 主机侧测试
+### 13.2 主机侧测试
 
 必须通过：
 
 ```bash
-make -C components/modem_ecm/test/host run
-make -C components/modem_ecm/test/host run-threads
+cmake -S . -B build/host
+cmake --build build/host --parallel
+ctest --test-dir build/host --output-on-failure
 ```
+
+`bk_modem_ecm` 的 host 测试必须作为根 CMake/CTest target 注册，并使用现有 ASan/UBSan 配置；不能只保留独立的 `make -C` 测试入口。
 
 覆盖：
 
@@ -557,14 +688,10 @@ make -C components/modem_ecm/test/host run-threads
 - 断开取消；
 - 请求队列。
 
-### 12.3 编译验证
+### 13.3 编译验证
 
 ```bash
-./tools/sdk_patch/build_with_sdk_patch.sh \
-    --sdk-dir "$SDK_DIR" \
-    --example usb_4g_ecm \
-    --board bk7259_qfn128b_evb_v1 \
-    --soc bk7259
+./dbuild.sh --profile usb_4g_ecm --sdk-dir "$SDK_DIR"
 ```
 
 验收：
@@ -575,7 +702,7 @@ make -C components/modem_ecm/test/host run-threads
 - map 中存在 `cdc_ecm_class_info` 和 `modem_at_class_info`；
 - map 中确认 4-bulk 配置生效。
 
-### 12.4 板级验证
+### 13.4 板级验证
 
 顺序：
 
@@ -592,7 +719,7 @@ make -C components/modem_ecm/test/host run-threads
 11. 30 分钟并行压力；
 12. 2 小时长稳。
 
-### 12.5 验收指标
+### 13.5 验收指标
 
 ```text
 枚举成功率：10/10
@@ -618,13 +745,21 @@ full-build
 artifact-layout-check
 ```
 
-CI 必须使用固定 SDK commit，不允许使用 SDK 的 HEAD 或浮动分支。
+这些检查应接入现有 `.github/workflows/build.yml`：
+
+- `host-checks` 中复用根 CMake、CTest、Python tool tests 和 manifest doctor；
+- `firmware-build` 中增加 `bk7259_usb_4g_ecm` profile 矩阵项；
+- Docker 构建继续使用 `bekencorp/armino-idk:1.5`，不再启动第二套 build shell；
+- 构建前由 `tools/bk` 准备 patched SDK，构建后检查 AP/CP artifact、map 和 SHA-256；
+- `sdk_patches/bk_avdk_smp/README_CN.md` 必须包含 Apache-2.0 声明、上游来源和 patch 基线。
+
+CI 必须使用固定 SDK 的 `tag_object_sha` 和 `peeled_commit_sha`，不允许使用 SDK 的 HEAD 或浮动分支。
 
 建议缓存：
 
 ```text
 clean SDK archive
-patched SDK workspace keyed by sdk_commit + patch hashes
+patched SDK workspace keyed by peeled_commit_sha + patch hashes
 ```
 
 ## 15. 回滚方案
@@ -656,7 +791,7 @@ rm -rf .build/sdk/bk_avdk_smp
 SDK 升级必须重新执行：
 
 ```text
-更新 sdk_commit
+更新 peeled_commit_sha
 重新生成或调整 patch
 静态检查
 主机测试
@@ -679,7 +814,10 @@ SDK 升级必须重新执行：
 | 热插拔死锁 | SDK patch 加 URB/pipe 生命周期修复，板测 10 次 |
 | VBUS 电源不足 | 先做示波器/电流测试，再做网络验证 |
 | macOS Bash 3.2 不支持 `wait -n` | 构建脚本改为兼容轮询或要求新版 Bash |
-| 误用未打补丁 SDK | 构建日志打印 patched SDK 路径和 patch hash |
+| 误用未打补丁 SDK | 构建日志打印 patched SDK 路径、SDK SHA 和 patch hash |
+| PSRAM cache 不一致 | 32B 对齐、DMA cache 维护或 non-cacheable 区域、运行时 high-water mark 验证 |
+| AP/CP GPIO 重复所有权 | 构建前比较两侧 GPIO 表，GPIO32 只允许 AP 持有 |
+| Docker 内路径不可见 | 临时 SDK 在 Docker 挂载根目录内自包含生成，禁止宿主绝对路径软链接 |
 
 ## 17. 交付物
 
@@ -687,11 +825,11 @@ SDK 升级必须重新执行：
 
 - `boards/bk7259_qfn128b_evb_v1` 板级描述；
 - `examples/usb_4g_ecm` 示例工程；
-- `components/modem_ecm`；
+- `components/bk_modem_ecm`；
 - 5 个 SDK patch；
 - patch manifest；
-- SDK patch 应用脚本；
-- 构建脚本；
+- `platforms/bk7259_usb_4g_ecm.yaml`；
+- `tools/bk` 的 patch 准备和构建集成；
 - 主机侧测试；
 - 板级硬件说明；
 - 验证报告；
@@ -701,9 +839,9 @@ SDK 升级必须重新执行：
 
 满足以下条件后，认为该方案完成：
 
-1. 方案仓库没有提交 `bk_avdk_smp` SDK 源码。
+1. `bk-open-framework` 没有提交 `bk_avdk_smp` SDK 源码。
 2. 干净 SDK 能根据 manifest 自动应用全部 patch。
-3. SDK commit 不匹配时构建立即失败。
+3. SDK `tag_object_sha` 或 `peeled_commit_sha` 不匹配时构建立即失败。
 4. 新板工程能生成 AP/CP 固件。
 5. BK7259 QFN128B EVB 能从 USB-A Host 口枚举 4G 模组。
 6. ECM 和 AT 两条通道可以并行运行。
@@ -712,3 +850,5 @@ SDK 升级必须重新执行：
 9. AT 与 TCP 并行 30 分钟无响应串线。
 10. 2 小时长稳测试没有持续内存增长。
 11. 其他未启用 USB ECM 的工程不受 patch 配置影响。
+12. patched SDK 在 Docker 内可见，构建日志包含 profile、SDK SHA、patch 列表和 patch hash。
+13. CTest、ASan/UBSan、AP/CP GPIO 冲突检查和 PSRAM cache/内存预算检查均通过。
