@@ -64,7 +64,17 @@ ctest --test-dir build --output-on-failure
 
 ## Docker 目标构建
 
-仓库提供组件级目标构建探针，适合在带有 Armino 工具链的容器中验证 Profile、AP/CP ELF 和 `all-app.bin`：
+仓库提供 [`dbuild.sh`](dbuild.sh) 一键 Docker 构建封装脚本（默认读取 `.bk-deps/bk_avdk_smp` 与 `.bk-deps/bk_solution_ai`，也可通过 `--sdk-dir` / `--solution-dir` 指定路径），内部自动校验 `bekencorp/armino-idk`（>= `1.5`）并调用 [`probe.sh`](tools/spikes/bk7259_component_probe/probe.sh)：
+
+```bash
+# 最小 Profile（仅依赖 bk_avdk_smp）
+./dbuild.sh --profile minimal --sdk-dir "$HOME/sdk/bk_avdk_smp"
+
+# 机器人 Profile（依赖 bk_avdk_smp + bk_solution_ai）
+./dbuild.sh --profile robot --sdk-dir "$HOME/sdk/bk_avdk_smp" --solution-dir "$HOME/sdk/bk_solution_ai"
+```
+
+如需手动运行容器，也可直接调用组件级目标构建探针验证 Profile、AP/CP ELF 和 `all-app.bin`：
 
 ```bash
 docker run --rm \

@@ -1,0 +1,149 @@
+name: bk-open-framework
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      firmware_build:
+        description: 'Run Docker BK7259 AP/CP firmware build'
+        type: boolean
+        required: false
+        default: true
+      profile:
+        description: 'Target profile to build'
+        type: choice
+        required: false
+        default: 'both'
+        options:
+          - both
+          - minimal
+          - robot
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-checks:
+    name: Host tests, manifests, and CTest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python and system dependencies
+        run: |
+          python -m pip install --disable-pip-version-check pyyaml
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libopus-dev
+
+      - name: Run Python tool unit tests
+        run: python3 -m unittest discover -s tools/tests -v
+
+      - name: Validate platform manifests
+        run: |
+          ./tools/bk list-profiles
+          ./tools/bk doctor --profile bk7259_minimal
+          ./tools/bk doctor --profile bk7259_robot
+
+      - name: Configure, build, and run Host CTest
+        run: |
+          cmake -S . -B build/host
+          cmake --build build/host --parallel
+          ctest --test-dir build/host --output-on-failure
+
+  firmware-build:
+    name: Firmware build (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    needs: host-checks
+    if: >-
+      (github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && inputs.firmware_build == true)
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [minimal, robot]
+    steps:
+      - name: Check profile filter
+        id: filter
+        run: |
+          selected="${{ github.event.inputs.profile || 'both' }}"
+          if [ "$selected" = "both" ] || [ "$selected" = "${{ matrix.profile }}" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Free disk space for Docker image and SDK checkouts
+        if: steps.filter.outputs.run == 'true'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h
+
+      - uses: actions/checkout@v4
+        if: steps.filter.outputs.run == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.filter.outputs.run == 'true'
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        if: steps.filter.outputs.run == 'true'
+        run: python -m pip install --disable-pip-version-check pyyaml
+
+      - name: Fetch and verify locked upstream dependencies
+        if: steps.filter.outputs.run == 'true'
+        run: |
+          ./tools/bk fetch --profile "bk7259_${{ matrix.profile }}"
+          if [ "${{ matrix.profile }}" = "robot" ]; then
+            ./tools/bk doctor --profile bk7259_robot \
+              --sdk-dir .bk-deps/bk_avdk_smp \
+              --solution-dir .bk-deps/bk_solution_ai
+          else
+            ./tools/bk doctor --profile bk7259_minimal \
+              --sdk-dir .bk-deps/bk_avdk_smp
+          fi
+
+      - name: Pull official Beken build container
+        if: steps.filter.outputs.run == 'true'
+        run: docker pull bekencorp/armino-idk:1.5
+
+      - name: Build BK7259 AP/CP firmware via dbuild.sh
+        if: steps.filter.outputs.run == 'true'
+        env:
+          DOCKER_IMAGE_VERSION: '1.5'
+          BK_DOCKER_SKIP_GROUP_CHECK: '1'
+        run: ./dbuild.sh --profile "${{ matrix.profile }}"
+
+      - name: Stage and verify firmware artifacts
+        if: steps.filter.outputs.run == 'true'
+        run: |
+          if [ "${{ matrix.profile }}" = "robot" ]; then
+            pkg_dir=".bk-deps/bk_avdk_smp/build/bk7259/beken_robot/package"
+          else
+            pkg_dir=".bk-deps/bk_avdk_smp/build/bk7259/app/package"
+          fi
+          mkdir -p "dist/${{ matrix.profile }}"
+          cp "$pkg_dir/all-app.bin" "dist/${{ matrix.profile }}/all-app.bin"
+          if [ -f "$pkg_dir/app_pack.rbl" ]; then
+            cp "$pkg_dir/app_pack.rbl" "dist/${{ matrix.profile }}/app_pack.rbl"
+          fi
+          sha256sum "dist/${{ matrix.profile }}"/*
+
+      - name: Upload firmware artifacts
+        if: steps.filter.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bk7259-${{ matrix.profile }}-firmware
+          path: dist/${{ matrix.profile }}/
+          retention-days: 14
