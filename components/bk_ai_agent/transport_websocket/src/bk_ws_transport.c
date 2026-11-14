@@ -765,6 +765,21 @@ static bool find_header_value_ci(const char *headers,
     return false;
 }
 
+static bool header_value_equals_ci(const char *value, const char *expected)
+{
+    if (value == NULL || expected == NULL) {
+        return false;
+    }
+    while (*value != '\0' && *expected != '\0') {
+        if (tolower((unsigned char)*value) != tolower((unsigned char)*expected)) {
+            return false;
+        }
+        ++value;
+        ++expected;
+    }
+    return *value == '\0' && *expected == '\0';
+}
+
 bk_err_t bk_ws_transport_connect(bk_ws_transport_handle_t ws)
 {
     if (ws == NULL) {
@@ -889,8 +904,14 @@ bk_err_t bk_ws_transport_connect(bk_ws_transport_handle_t ws)
         return BK_ERR_CORRUPTED;
     }
 
+    char got_upgrade[32] = {0};
+    char got_connection[32] = {0};
     char got_accept[64] = {0};
-    if (!find_header_value_ci(resp, "Sec-WebSocket-Accept", got_accept, sizeof(got_accept)) ||
+    if (!find_header_value_ci(resp, "Upgrade", got_upgrade, sizeof(got_upgrade)) ||
+        !header_value_equals_ci(got_upgrade, "websocket") ||
+        !find_header_value_ci(resp, "Connection", got_connection, sizeof(got_connection)) ||
+        !header_value_equals_ci(got_connection, "Upgrade") ||
+        !find_header_value_ci(resp, "Sec-WebSocket-Accept", got_accept, sizeof(got_accept)) ||
         strcmp(got_accept, expected_accept) != 0) {
         close_stream(ws);
         ws->state = BK_WS_STATE_DISCONNECTED;

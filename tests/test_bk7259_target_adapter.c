@@ -59,6 +59,18 @@ int bk_rand(void)
     return (int)s;
 }
 
+int bk_fill_rand(void *buf, size_t len)
+{
+    if (buf == NULL || len == 0U) {
+        return -1;
+    }
+    uint8_t *out = (uint8_t *)buf;
+    for (size_t i = 0U; i < len; ++i) {
+        out[i] = (uint8_t)bk_rand();
+    }
+    return 0;
+}
+
 bk_err_t rtos_init_mutex(beken_mutex_t *mutex)
 {
     pthread_mutex_t *m = (pthread_mutex_t *)calloc(1, sizeof(*m));
@@ -482,6 +494,7 @@ static void *bk7259_wss_server_thread(void *arg)
 
 int main(void)
 {
+    assert(bk_port_get_random(NULL, 0U) == BK_OK);
     assert(bk_board_init(BK_BOARD_PROFILE_ROBOT) == BK_OK);
 
     static const uint8_t k_valid_ca_pem[] =

@@ -17,6 +17,9 @@
 #include <os/os.h>
 #include <string.h>
 
+/* Provided by the Armino platform/PSA RNG implementation. */
+extern int bk_fill_rand(void *buff, size_t len);
+
 extern bool bk_dcache_addr_is_cacheable(const void *addr);
 extern void bk_dcache_clean_for_producer(void *addr, uint32_t size);
 extern void bk_dcache_invalidate_for_consumer(void *addr, uint32_t size);
@@ -166,15 +169,10 @@ bk_err_t bk_port_get_random(void *buf, size_t len)
     if (buf == NULL && len > 0U) {
         return BK_ERR_INVALID_ARG;
     }
-    uint8_t *out = (uint8_t *)buf;
-    size_t pos = 0U;
-    while (pos < len) {
-        uint32_t rnd = (uint32_t)bk_rand();
-        size_t chunk = (len - pos < sizeof(rnd)) ? (len - pos) : sizeof(rnd);
-        os_memcpy(out + pos, &rnd, chunk);
-        pos += chunk;
+    if (len == 0U) {
+        return BK_OK;
     }
-    return BK_OK;
+    return bk_fill_rand(buf, len) == 0 ? BK_OK : BK_ERR_IO;
 }
 
 void *bk_port_malloc(size_t size, uint32_t caps, const char *tag)
