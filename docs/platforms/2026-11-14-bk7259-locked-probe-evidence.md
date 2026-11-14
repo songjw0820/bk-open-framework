@@ -31,3 +31,5 @@
 两次探针均验证了 AP/CP 编译、Kconfig on/off 符号裁剪和 `all-app.bin` 打包。构建日志中的链接器报告包含既有的 `missing --end-group`、RWX LOAD segment 和 newlib `_gettimeofday` 警告，未阻止探针通过，需在产品发布前单独评估。
 
 该证据只覆盖 Docker 目标构建，不代表 BK7259 实机启动、外设 DMA、WSS、音频或 OTA 已验收。
+
+`robot` 的 `app_pack.rbl` 为 2,963,312 B，超过候选分区表中 1,960 KiB 的 `ota` 容量。该候选分区表未通过尺寸门禁，`bk_ota` 继续保持 deferred。

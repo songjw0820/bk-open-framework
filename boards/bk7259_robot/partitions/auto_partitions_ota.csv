@@ -3,8 +3,9 @@
 # NOTE: Default bk_solution_ai auto_partitions.csv only allocates 264K to 'ota' and omits
 # 'ota_control'. This candidate layout re-budgets primary_ap_app from 6248K -> 4480K
 # (measured baseline ~3700K) to allocate 1960K for compressed 'ota' + 32K for 'ota_control'.
-# Target Gate: Must be verified against actual AP/CP ELF & compressed ota.bin sizes on hardware
-# before promoting bk_ota from deferred_target_components to components in bk7259_robot.yaml.
+# Target Gate: Locked-SHA robot probe measured app_pack.rbl at 2963312 bytes, which exceeds
+# this candidate 1960K ota slot. This candidate therefore remains rejected and must be
+# re-budgeted before promoting bk_ota from deferred_target_components.
 Name,Offset,Size,Execute,Read,Write
 bl1_control,0x00000000,4K,FALSE,TRUE,FALSE
 boot_flag,0x00001000,4K,FALSE,TRUE,FALSE
