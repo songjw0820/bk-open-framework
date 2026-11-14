@@ -8,7 +8,8 @@ probe_symbol="bk_open_framework_probe_marker"
 usage() {
   cat <<'USAGE'
 Usage: probe.sh [--profile minimal|robot] --sdk-dir PATH [--solution-dir PATH]
-                [--probe-component PATH] [--config-mode on|off|both] [--build]
+                [--probe-component PATH] [--config-mode on|off|both]
+                [--build] [--clean-build]
 
 Profiles:
   minimal  Validate/build against pure SDK project (bk_avdk_smp/projects/app). Does NOT use bk_solution_ai.
@@ -17,7 +18,9 @@ Profiles:
 Options:
   --probe-component PATH     External component fixture to inject into AP and CP (default: fixture/bk_probe_comp).
   --config-mode on|off|both  Verify Kconfig enabled ('on'), disabled ('off'), or both sequentially (default: both).
-  --build                    Execute AP/CP builds, verify all-app.bin, and run nm symbol checks on AP (bk7259_ap) and CP (bk7259).
+  --build                    Execute AP/CP builds using an isolated temporary PROJECT_DIR copy, verify all-app.bin,
+                             and run nm symbol checks on AP (bk7259_ap) and CP (bk7259).
+  --clean-build              Allow removing an existing <SDK_DIR>/build/bk7259/<project> directory before probing.
 USAGE
 }
 
@@ -27,6 +30,7 @@ sdk_dir=""
 probe_comp_dir="$default_probe_comp"
 config_mode="both"
 run_build=0
+clean_build=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -36,6 +40,7 @@ while [ "$#" -gt 0 ]; do
     --probe-component) probe_comp_dir=${2:?missing value}; shift 2 ;;
     --config-mode) config_mode=${2:?missing value}; shift 2 ;;
     --build) run_build=1; shift ;;
+    --clean-build) clean_build=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -113,10 +118,9 @@ printf '%s\n' \
   "Profile: $profile" \
   "Probe component: $probe_comp_dir (symbol: $probe_symbol)" \
   "Config mode: $config_mode" \
-  "AP entry: $project_dir/ap/CMakeLists.txt" \
-  "CP entry: $project_dir/cp/CMakeLists.txt" \
-  "AP injection path: $project_dir/ap/components/bk_probe_comp" \
-  "CP injection path: $project_dir/cp/components/bk_probe_comp" \
+  "Source AP entry (read-only): $project_dir/ap/CMakeLists.txt" \
+  "Source CP entry (read-only): $project_dir/cp/CMakeLists.txt" \
+  "Isolated injection mode: temporary PROJECT_DIR copy (never modifies SDK/solution source tree)" \
   "Expected AP build dir: $build_dir/bk7259_ap" \
   "Expected CP build dir: $build_dir/bk7259" \
   "Expected artifact: $artifact"
@@ -135,6 +139,11 @@ if [ ! -d "$sdk_dir" ]; then
   exit 5
 fi
 
+if [ -e "$build_dir" ] && [ "$clean_build" -eq 0 ]; then
+  echo "ERROR: build output directory already exists: $build_dir (pass --clean-build to allow replacing it)" >&2
+  exit 6
+fi
+
 nm_tool=""
 for candidate in arm-none-eabi-nm llvm-nm nm; do
   if command -v "$candidate" >/dev/null 2>&1; then
@@ -147,34 +156,61 @@ if [ -z "$nm_tool" ]; then
   exit 5
 fi
 
-backup_dir="$(mktemp -d)"
-cp "$ap_defconfig" "$backup_dir/ap_defconfig.bak"
-cp "$cp_defconfig" "$backup_dir/cp_defconfig.bak"
-cp "$project_dir/ap/CMakeLists.txt" "$backup_dir/ap_CMakeLists.bak"
-cp "$project_dir/cp/CMakeLists.txt" "$backup_dir/cp_CMakeLists.bak"
+work_root="$(mktemp -d)"
+work_project_dir="$work_root/projects/$project_name"
+mkdir -p "$work_root/projects"
+cp -R "$project_dir" "$work_project_dir"
+
+if [ "$profile" = "robot" ] && [ -d "$solution_dir/components" ]; then
+  ln -s "$solution_dir/components" "$work_root/components"
+fi
 
 cleanup() {
-  cp "$backup_dir/ap_defconfig.bak" "$ap_defconfig" 2>/dev/null || true
-  cp "$backup_dir/cp_defconfig.bak" "$cp_defconfig" 2>/dev/null || true
-  cp "$backup_dir/ap_CMakeLists.bak" "$project_dir/ap/CMakeLists.txt" 2>/dev/null || true
-  cp "$backup_dir/cp_CMakeLists.bak" "$project_dir/cp/CMakeLists.txt" 2>/dev/null || true
-  rm -rf "$project_dir/ap/components/bk_probe_comp" "$project_dir/cp/components/bk_probe_comp" "$backup_dir"
+  rm -rf "$work_root"
 }
 trap cleanup EXIT
+
+work_ap_defconfig="$work_project_dir/ap/config/bk7259_ap/defconfig"
+work_cp_defconfig="$work_project_dir/cp/config/bk7259/defconfig"
+cp "$work_ap_defconfig" "$work_root/ap_defconfig.orig"
+cp "$work_cp_defconfig" "$work_root/cp_defconfig.orig"
 
 # Per bk_avdk_smp/tools/build_tools/cmake/project.cmake:266-277:
 # EXTRA_COMPONENTS_DIRS is only scanned when sub_sys == "ap", whereas
 # ${PROJECT_DIR}/${sub_sys}/components is scanned for both "ap" and "cp".
-mkdir -p "$project_dir/ap/components" "$project_dir/cp/components"
-rm -rf "$project_dir/ap/components/bk_probe_comp" "$project_dir/cp/components/bk_probe_comp"
-cp -R "$probe_comp_dir" "$project_dir/ap/components/bk_probe_comp"
-cp -R "$probe_comp_dir" "$project_dir/cp/components/bk_probe_comp"
+mkdir -p "$work_project_dir/ap/components" "$work_project_dir/cp/components"
+cp -R "$probe_comp_dir" "$work_project_dir/ap/components/bk_probe_comp"
+cp -R "$probe_comp_dir" "$work_project_dir/cp/components/bk_probe_comp"
 
-for side_cmake in "$project_dir/ap/CMakeLists.txt" "$project_dir/cp/CMakeLists.txt"; do
+for side_cmake in "$work_project_dir/ap/CMakeLists.txt" "$work_project_dir/cp/CMakeLists.txt"; do
   if grep -q 'PRIV_REQUIRES' "$side_cmake"; then
-    sed -i 's/armino_component_register(/list(APPEND priv_req bk_probe_comp)\narmino_component_register(/' "$side_cmake"
+    python3 - "$side_cmake" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+text = p.read_text(encoding="utf-8")
+p.write_text(
+    text.replace(
+        "armino_component_register(",
+        "list(APPEND priv_req bk_probe_comp)\narmino_component_register(",
+        1,
+    ),
+    encoding="utf-8",
+)
+PY
   else
-    sed -i 's/armino_component_register(/list(APPEND priv_req bk_probe_comp)\narmino_component_register(PRIV_REQUIRES "${priv_req}" /' "$side_cmake"
+    python3 - "$side_cmake" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+text = p.read_text(encoding="utf-8")
+p.write_text(
+    text.replace(
+        "armino_component_register(",
+        'list(APPEND priv_req bk_probe_comp)\narmino_component_register(PRIV_REQUIRES "${priv_req}" ',
+        1,
+    ),
+    encoding="utf-8",
+)
+PY
   fi
 done
 
@@ -219,21 +255,21 @@ check_symbol_in_side() {
 
 run_single_mode() {
   local mode="$1"
-  cp "$backup_dir/ap_defconfig.bak" "$ap_defconfig"
-  cp "$backup_dir/cp_defconfig.bak" "$cp_defconfig"
+  cp "$work_root/ap_defconfig.orig" "$work_ap_defconfig"
+  cp "$work_root/cp_defconfig.orig" "$work_cp_defconfig"
 
   if [ "$mode" = "on" ]; then
-    printf '\nCONFIG_BK_OPEN_FRAMEWORK_PROBE=y\n' >> "$ap_defconfig"
-    printf '\nCONFIG_BK_OPEN_FRAMEWORK_PROBE=y\n' >> "$cp_defconfig"
+    printf '\nCONFIG_BK_OPEN_FRAMEWORK_PROBE=y\n' >> "$work_ap_defconfig"
+    printf '\nCONFIG_BK_OPEN_FRAMEWORK_PROBE=y\n' >> "$work_cp_defconfig"
     expect_sym=1
   else
-    printf '\n# CONFIG_BK_OPEN_FRAMEWORK_PROBE is not set\n' >> "$ap_defconfig"
-    printf '\n# CONFIG_BK_OPEN_FRAMEWORK_PROBE is not set\n' >> "$cp_defconfig"
+    printf '\n# CONFIG_BK_OPEN_FRAMEWORK_PROBE is not set\n' >> "$work_ap_defconfig"
+    printf '\n# CONFIG_BK_OPEN_FRAMEWORK_PROBE is not set\n' >> "$work_cp_defconfig"
     expect_sym=0
   fi
 
   rm -rf "$build_dir"
-  make -C "$sdk_dir" bk7259 PROJECT="$project_name" PROJECT_DIR="$project_dir"
+  make -C "$sdk_dir" bk7259 PROJECT="$project_name" PROJECT_DIR="$work_project_dir"
 
   if [ ! -f "$artifact" ]; then
     echo "ERROR: [$mode] build completed without expected artifact: $artifact" >&2

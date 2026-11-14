@@ -44,5 +44,8 @@ product_components:
   - bk_motion
   - bk_robot_face
   - bk_battery_policy
+# Optional commercial plugin boundary stub (excluded by default; requires external
+# proprietary libagora-rtc-sdk.a + commercial license; currently unverified stub):
 optional_plugins:
   - plugin_agora
+

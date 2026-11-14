@@ -22,5 +22,5 @@ else()
         "${CMAKE_CURRENT_SOURCE_DIR}/transport_websocket/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/protocol_xiaozhi/include"
     )
-    target_link_libraries(bk_ai_agent PUBLIC bk_common bk_port bk_net bk_audio_session)
+    target_link_libraries(bk_ai_agent PUBLIC bk_common bk_port bk_net bk_audio_session ${CMAKE_DL_LIBS})
 endif()

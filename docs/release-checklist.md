@@ -32,14 +32,14 @@
 - [x] **网络状态机 (`bk_net`)**：连接、断线指数退避重连、5-AP MRU 凭证管理、SNTP 超时与 TLS 错误码传播测试通过（`ctest -R test_net_fsm` + `example_01_wifi_provision` + `example_02_lan_device`）。
 - [x] **外设状态机 (`bk_button`, `bk_led_effect`)**：消抖、单击/双击/长按、灯效优先级抢占与恢复测试通过（`ctest -R test_peripherals_and_media` + `example_05_peripheral_control`）。
 - [x] **媒体缓冲与混音算术 (`bk_audio_mixer`, `bk_video_frame_pool`)**：20ms PCM 帧混音/Ducking 防溢出、64B 对齐 PSRAM 原子引用计数、Cache Clean/Invalidate 统计与 LVGL 递归锁测试通过（`ctest -R test_peripherals_and_media` + `example_03_audio_player` + `example_04_camera_stream`）。
-- [x] **小智协议状态机 (`protocol_xiaozhi`)**：Hello 握手、3×20ms PCM 聚合为 60ms Opus 包、下行 60ms->3×20ms 拆包、MCP (`jsonrpc: 2.0`) 工具调用解析、默认拒绝旧版 `iot` 消息测试通过（`ctest -R test_protocol_xiaozhi` + `example_06_robot_reference`）。
+- [x] **小智协议与本地回环 WebSocket (`protocol_xiaozhi`, `transport_websocket`)**：RFC 6455 本地回环 TCP 握手（`Sec-WebSocket-Accept` 校验、小智 `Authorization`/`Protocol-Version`/`Device-Id`/`Client-Id` 头部、Masking、Ping/Pong、Close 断线回调）、原生 `libopus` 3×20ms <-> 60ms 真实 Opus 编解码、严格按 `len` 边界与 `payload` 作用域解析的 MCP (`jsonrpc: "2.0"`，支持整型与字符串 `id`) 及默认拒绝旧版 `iot` 消息测试通过（`ctest -R test_protocol_xiaozhi` + `example_06_robot_reference`；远端 `wss://` 与实机语音交互仍属 Tier 4 待验项）。
 
 ---
 
 ## 3. Tier 2：SDK 编译、链接与裁剪门禁（`bk7259_v4`）
 
 - [ ] **Task 0 `minimal` 探针闭环（无 `bk_solution_ai`）**：
-  - [ ] 运行 `./tools/spikes/bk7259_component_probe/probe.sh --profile minimal --sdk-dir <SDK> --build` 返回 `PASS`。
+  - [ ] 运行 `./tools/spikes/bk7259_component_probe/probe.sh --profile minimal --sdk-dir <SDK> --build` 返回 `PASS`（脚本在临时 `PROJECT_DIR` 副本上注入，不修改外部源码树）。
   - [ ] 记录 `<SDK>/build/bk7259/app/package/all-app.bin` 真实文件大小与 SHA256。
   - [ ] `nm` / `objdump` 确认未启用组件在 ELF 中零残留符号。
 - [ ] **Task 0 `robot` 探针闭环**：
@@ -47,7 +47,7 @@
   - [ ] 记录 `<SDK>/build/bk7259/beken_robot/package/all-app.bin` 真实文件大小与 SHA256。
 - [ ] **`bk7259_robot` 框架工程构建**：
   - [ ] 无 Agora 插件配置编译通过并生成 `all-app.bin`。
-  - [ ] 启用 Agora 插件配置编译通过并生成 `all-app.bin`。
+  - [ ] 商业插件边界验证：`plugin_agora` 当前仅为未绑定外部闭源 `libagora-rtc-sdk.a` 的编译隔离桩（调用返回 `BK_ERR_NOT_VERIFIED` / `BK_ERR_NOT_SUPPORTED`），待接入商业授权 SDK 后再验证启用态构建。
 - [ ] **静态内存预算审计**：记录实测 AP/CP Flash、SRAM、PSRAM 占用字节数，确认无分区溢出。
 
 ---

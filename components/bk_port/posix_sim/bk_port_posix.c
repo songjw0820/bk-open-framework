@@ -66,19 +66,20 @@ bk_err_t bk_port_mutex_lock(bk_port_mutex_t mutex, uint32_t timeout_ms)
     if (timeout_ms == UINT32_MAX) {
         return pthread_mutex_lock(&mutex->handle) == 0 ? BK_OK : BK_ERR_INVALID_STATE;
     }
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += (time_t)(timeout_ms / 1000U);
-    ts.tv_nsec += (long)((timeout_ms % 1000U) * 1000000L);
-    if (ts.tv_nsec >= 1000000000L) {
-        ts.tv_sec += 1;
-        ts.tv_nsec -= 1000000000L;
+    uint64_t deadline = bk_port_get_time_ms() + (uint64_t)timeout_ms;
+    for (;;) {
+        int rc = pthread_mutex_trylock(&mutex->handle);
+        if (rc == 0) {
+            return BK_OK;
+        }
+        if (rc != EBUSY) {
+            return BK_ERR_INVALID_STATE;
+        }
+        if (bk_port_get_time_ms() >= deadline) {
+            return BK_ERR_TIMEOUT;
+        }
+        bk_port_sleep_ms(1);
     }
-    int rc = pthread_mutex_timedlock(&mutex->handle, &ts);
-    if (rc == 0) {
-        return BK_OK;
-    }
-    return rc == ETIMEDOUT ? BK_ERR_TIMEOUT : BK_ERR_INVALID_STATE;
 }
 
 bk_err_t bk_port_mutex_unlock(bk_port_mutex_t mutex)
