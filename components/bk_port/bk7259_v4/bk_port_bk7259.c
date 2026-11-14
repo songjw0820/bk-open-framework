@@ -178,10 +178,13 @@ bk_err_t bk_port_get_random(void *buf, size_t len)
 void *bk_port_malloc(size_t size, uint32_t caps, const char *tag)
 {
     (void)tag;
-    if (size == 0) {
+    if (size == 0U) {
         return NULL;
     }
     size_t align = (caps & BK_MEM_CAP_DMA_ALIGN64) ? BK_FRAME_QUEUE_ALIGN_BYTES : sizeof(void *);
+    if (size > (SIZE_MAX - align - sizeof(bk_alloc_hdr_t))) {
+        return NULL;
+    }
     size_t total = size + align + sizeof(bk_alloc_hdr_t);
     uint8_t *raw = NULL;
 
@@ -203,18 +206,26 @@ void *bk_port_malloc(size_t size, uint32_t caps, const char *tag)
     hdr->user_size = size;
     hdr->magic = BK_ALLOC_MAGIC;
 
-    g_mem_stats.current_allocated_bytes += size;
-    if (g_mem_stats.current_allocated_bytes > g_mem_stats.peak_allocated_bytes) {
-        g_mem_stats.peak_allocated_bytes = g_mem_stats.current_allocated_bytes;
+    size_t cur = __atomic_add_fetch(&g_mem_stats.current_allocated_bytes, size, __ATOMIC_RELAXED);
+    size_t peak = __atomic_load_n(&g_mem_stats.peak_allocated_bytes, __ATOMIC_RELAXED);
+    while (cur > peak) {
+        if (__atomic_compare_exchange_n(&g_mem_stats.peak_allocated_bytes,
+                                        &peak,
+                                        cur,
+                                        true,
+                                        __ATOMIC_RELAXED,
+                                        __ATOMIC_RELAXED)) {
+            break;
+        }
     }
-    g_mem_stats.active_allocations += 1U;
-    g_mem_stats.total_allocations += 1U;
+    __atomic_add_fetch(&g_mem_stats.active_allocations, 1U, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&g_mem_stats.total_allocations, 1U, __ATOMIC_RELAXED);
     return (void *)aligned;
 }
 
 void *bk_port_calloc(size_t nmemb, size_t size, uint32_t caps, const char *tag)
 {
-    if (nmemb == 0 || size == 0) {
+    if (nmemb == 0U || size == 0U || nmemb > (SIZE_MAX / size)) {
         return NULL;
     }
     size_t total = nmemb * size;
@@ -235,46 +246,75 @@ void bk_port_free(void *ptr)
         return;
     }
     hdr->magic = 0U;
-    if (g_mem_stats.current_allocated_bytes >= hdr->user_size) {
-        g_mem_stats.current_allocated_bytes -= hdr->user_size;
+    size_t user_size = hdr->user_size;
+    void *raw_base = hdr->raw_base;
+
+    size_t cur = __atomic_load_n(&g_mem_stats.current_allocated_bytes, __ATOMIC_RELAXED);
+    while (cur >= user_size) {
+        if (__atomic_compare_exchange_n(&g_mem_stats.current_allocated_bytes,
+                                        &cur,
+                                        cur - user_size,
+                                        true,
+                                        __ATOMIC_RELAXED,
+                                        __ATOMIC_RELAXED)) {
+            break;
+        }
     }
-    if (g_mem_stats.active_allocations > 0) {
-        g_mem_stats.active_allocations -= 1U;
+    size_t act = __atomic_load_n(&g_mem_stats.active_allocations, __ATOMIC_RELAXED);
+    while (act > 0U) {
+        if (__atomic_compare_exchange_n(&g_mem_stats.active_allocations,
+                                        &act,
+                                        act - 1U,
+                                        true,
+                                        __ATOMIC_RELAXED,
+                                        __ATOMIC_RELAXED)) {
+            break;
+        }
     }
-    os_free(hdr->raw_base);
+    os_free(raw_base);
 }
 
 void bk_port_get_mem_stats(bk_port_mem_stats_t *out_stats)
 {
     if (out_stats != NULL) {
-        *out_stats = g_mem_stats;
+        out_stats->current_allocated_bytes =
+            __atomic_load_n(&g_mem_stats.current_allocated_bytes, __ATOMIC_RELAXED);
+        out_stats->peak_allocated_bytes =
+            __atomic_load_n(&g_mem_stats.peak_allocated_bytes, __ATOMIC_RELAXED);
+        out_stats->active_allocations =
+            __atomic_load_n(&g_mem_stats.active_allocations, __ATOMIC_RELAXED);
+        out_stats->total_allocations =
+            __atomic_load_n(&g_mem_stats.total_allocations, __ATOMIC_RELAXED);
     }
 }
 
 void bk_port_reset_mem_stats(void)
 {
-    os_memset(&g_mem_stats, 0, sizeof(g_mem_stats));
+    __atomic_store_n(&g_mem_stats.current_allocated_bytes, 0U, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_mem_stats.peak_allocated_bytes, 0U, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_mem_stats.active_allocations, 0U, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_mem_stats.total_allocations, 0U, __ATOMIC_RELAXED);
 }
 
 bk_err_t bk_port_dcache_clean(void *addr, size_t size)
 {
-    if (addr == NULL || size == 0) {
+    if (addr == NULL || size == 0U) {
         return BK_ERR_INVALID_ARG;
     }
     bk_dcache_clean_for_producer(addr, (uint32_t)size);
-    g_cache_stats.clean_count += 1U;
-    g_cache_stats.last_clean_bytes = size;
+    __atomic_add_fetch(&g_cache_stats.clean_count, 1U, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_cache_stats.last_clean_bytes, size, __ATOMIC_RELAXED);
     return BK_OK;
 }
 
 bk_err_t bk_port_dcache_invalidate(void *addr, size_t size)
 {
-    if (addr == NULL || size == 0) {
+    if (addr == NULL || size == 0U) {
         return BK_ERR_INVALID_ARG;
     }
     bk_dcache_invalidate_for_consumer(addr, (uint32_t)size);
-    g_cache_stats.invalidate_count += 1U;
-    g_cache_stats.last_invalidate_bytes = size;
+    __atomic_add_fetch(&g_cache_stats.invalidate_count, 1U, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_cache_stats.last_invalidate_bytes, size, __ATOMIC_RELAXED);
     return BK_OK;
 }
 
@@ -286,11 +326,21 @@ bool bk_port_addr_is_cacheable(const void *addr)
 void bk_port_get_cache_stats(bk_port_cache_stats_t *out_stats)
 {
     if (out_stats != NULL) {
-        *out_stats = g_cache_stats;
+        out_stats->clean_count =
+            __atomic_load_n(&g_cache_stats.clean_count, __ATOMIC_RELAXED);
+        out_stats->invalidate_count =
+            __atomic_load_n(&g_cache_stats.invalidate_count, __ATOMIC_RELAXED);
+        out_stats->last_clean_bytes =
+            __atomic_load_n(&g_cache_stats.last_clean_bytes, __ATOMIC_RELAXED);
+        out_stats->last_invalidate_bytes =
+            __atomic_load_n(&g_cache_stats.last_invalidate_bytes, __ATOMIC_RELAXED);
     }
 }
 
 void bk_port_reset_cache_stats(void)
 {
-    os_memset(&g_cache_stats, 0, sizeof(g_cache_stats));
+    __atomic_store_n(&g_cache_stats.clean_count, 0U, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_cache_stats.invalidate_count, 0U, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_cache_stats.last_clean_bytes, 0U, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_cache_stats.last_invalidate_bytes, 0U, __ATOMIC_RELAXED);
 }

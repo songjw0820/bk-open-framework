@@ -193,10 +193,13 @@ bk_err_t bk_port_get_random(void *buf, size_t len)
 void *bk_port_malloc(size_t size, uint32_t caps, const char *tag)
 {
     (void)tag;
-    if (size == 0) {
+    if (size == 0U) {
         return NULL;
     }
     size_t align = (caps & BK_MEM_CAP_DMA_ALIGN64) ? BK_FRAME_QUEUE_ALIGN_BYTES : sizeof(void *);
+    if (size > (SIZE_MAX - align - sizeof(bk_alloc_hdr_t))) {
+        return NULL;
+    }
     size_t total = size + align + sizeof(bk_alloc_hdr_t);
     uint8_t *raw = (uint8_t *)malloc(total);
     if (raw == NULL) {

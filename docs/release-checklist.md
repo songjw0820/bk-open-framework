@@ -1,8 +1,8 @@
 # BK Open Framework 发布与实机验收清单（Release & Hardware Acceptance Checklist）
 
-> **当前状态声明（Tier 1 Host Verified · Tier 2/3/4 Target & Hardware Pending）**：
-> - **已验证（Verified on Host）**：远端锁定 SHA、静态许可证审计（[bk_solution_ai-dependency-inventory.md](legal/bk_solution_ai-dependency-inventory.md)）、`./tools/bk` Manifest/Doctor 单测（12/12 PASS）及 **Tier 1 `posix_sim` + `BK7259` 目标适配层 CTest 全量套件（13/13 PASS，开启 `-Wall -Wextra -Werror -fsanitize=address,undefined` 零内存泄漏）**。
-> - **未验证（NOT VERIFIED — Pending Armino Toolchain & Hardware）**：Tier 2 板端交叉编译与 `all-app.bin` 产物（`not_run_toolchain_unavailable`）、Tier 3/4 `bk7259_robot` 实机验收及 `bk_ota` 暂缓门禁。
+> **当前状态声明（Tier 1 Host Verified · Tier 2 Container Build Verified on Current Checkout · Locked-SHA & Hardware Pending）**：
+> - **已验证（Verified）**：远端锁定 SHA、静态许可证审计（[bk_solution_ai-dependency-inventory.md](legal/bk_solution_ai-dependency-inventory.md)）、`./tools/bk` Manifest/Doctor 单测（12/12 PASS）、**Tier 1 `posix_sim` + `BK7259` 目标适配层 CTest 全量套件（13/13 PASS，开启 `-Wall -Wextra -Werror -fsanitize=address,undefined` 零内存泄漏）**，以及基于 `bekencorp/armino-idk:1.5` 容器与当前 SDK checkout 的 **Docker ARM AP/CP 目标构建（生成 AP/CP ELF 与 `all-app.bin`）**。
+> - **待执行（Pending）**：在 Profile 精确锁定的 SDK SHA（`584b947920c414230f9909375f008e7d6a2c6c6b`）上复现容器目标构建、Tier 3/4 `bk7259_robot` 实机验收及 `bk_ota` 暂缓门禁。
 
 ---
 
@@ -18,8 +18,8 @@
 | `bk_solution_ai` Ref (`robot` profile) | `release/v4.0.1.11` | `release/v4.0.1.11` (verified via `gh api`) | [x] |
 | `bk_solution_ai` `tag_object_sha` | `009c95182de07ae874e39e3d3c24994431bcec70` | `009c95182de07ae874e39e3d3c24994431bcec70` | [x] |
 | `bk_solution_ai` `peeled_commit_sha` | `a1e865e156e8dc31dfb360219c33a6a6d908ea98` | `a1e865e156e8dc31dfb360219c33a6a6d908ea98` | [x] |
-| 交叉编译工具链版本 | AP `cm55` / CP `cm52` 工具链（记录完整 `--version`） | `not_run_toolchain_unavailable` | [ ] |
-| 宿主机 OS / 容器镜像摘要 | Linux / `bekencorp/armino-idk` Image Digest | `Debian 12 (GCC 12.2.0, CMake 3.25.1, Python 3.11.2) — Host Tier 1 only` | [ ] |
+| 交叉编译工具链版本 | AP `cm55` / CP `cm52` 工具链（记录完整 `--version`） | `Verified in bekencorp/armino-idk:1.5 (locked-SHA run pending)` | [ ] |
+| 宿主机 OS / 容器镜像摘要 | Linux / `bekencorp/armino-idk` Image Digest | `bekencorp/armino-idk:1.5 + Debian 12 Host Tier 1` | [ ] |
 | 许可证与第三方依赖审计 | [bk_solution_ai-dependency-inventory.md](legal/bk_solution_ai-dependency-inventory.md) 全部待核对项清零 | `Verified static tree at 584b9479 / a1e865e1` | [x] |
 
 ---

@@ -351,8 +351,14 @@ size_t mbedtls_ssl_get_bytes_avail(const mbedtls_ssl_context *ssl)
     return 0U;
 }
 
+static int g_want_read_remaining = 0;
+
 int mbedtls_ssl_read(mbedtls_ssl_context *ssl, unsigned char *buf, size_t len)
 {
+    if (g_want_read_remaining > 0) {
+        g_want_read_remaining -= 1;
+        return MBEDTLS_ERR_SSL_WANT_READ;
+    }
     return ssl->f_recv(ssl->p_bio, buf, len);
 }
 
@@ -495,6 +501,8 @@ static void *bk7259_wss_server_thread(void *arg)
 int main(void)
 {
     assert(bk_port_get_random(NULL, 0U) == BK_OK);
+    assert(bk_port_malloc(SIZE_MAX, BK_MEM_CAP_DEFAULT, "overflow") == NULL);
+    assert(bk_port_calloc(SIZE_MAX, 2U, BK_MEM_CAP_DEFAULT, "overflow") == NULL);
     assert(bk_board_init(BK_BOARD_PROFILE_ROBOT) == BK_OK);
 
     static const uint8_t k_valid_ca_pem[] =
@@ -559,6 +567,7 @@ int main(void)
 
     /* 3. Verify wss:// with valid CA PEM + SNI + mbedTLS + <modules/opus.h> succeeds */
     g_mock_verify_result = 0U;
+    g_want_read_remaining = 3;
     int lfd2 = socket(AF_INET, SOCK_STREAM, 0);
     assert(lfd2 >= 0);
     memset(&addr0, 0, sizeof(addr0));
@@ -589,6 +598,7 @@ int main(void)
     assert(bk_ws_transport_create(&good_wss_cfg, &ws) == BK_OK);
     assert(bk_ws_transport_connect(ws) == BK_OK);
     assert(bk_ws_transport_is_connected(ws));
+    assert(g_want_read_remaining == 0);
     assert(g_last_authmode == MBEDTLS_SSL_VERIFY_REQUIRED);
     assert(strcmp(g_last_sni_hostname, "api.tenclass.net") == 0);
 

@@ -577,30 +577,52 @@ static int stream_read_some(struct bk_ws_transport *ws,
 #if defined(BK_OF_BUILDING_TARGET_BK7259)
     if (ws->mbedtls_active && mbedtls_ssl_get_bytes_avail(&ws->ssl) > 0U) {
         int ret = mbedtls_ssl_read(&ws->ssl, buf, len);
-        return (ret > 0) ? ret : -1;
+        if (ret > 0) {
+            return ret;
+        }
+        if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+            return -1;
+        }
     }
 #endif
-    fd_set rfds;
-    FD_ZERO(&rfds);
-    FD_SET(ws->sock_fd, &rfds);
-    struct timeval tv;
-    tv.tv_sec = (time_t)(timeout_ms / 1000U);
-    tv.tv_usec = (suseconds_t)((timeout_ms % 1000U) * 1000U);
-    int r = select(ws->sock_fd + 1, &rfds, NULL, NULL, &tv);
-    if (r == 0) {
-        return -2; /* timeout */
-    }
-    if (r < 0) {
-        return -1;
-    }
+    uint64_t deadline_ms = bk_port_get_time_ms() + (uint64_t)timeout_ms;
+    for (;;) {
+        uint64_t now_ms = bk_port_get_time_ms();
+        uint32_t rem_ms = (now_ms < deadline_ms) ? (uint32_t)(deadline_ms - now_ms) : 0U;
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(ws->sock_fd, &rfds);
+        struct timeval tv;
+        tv.tv_sec = (time_t)(rem_ms / 1000U);
+        tv.tv_usec = (suseconds_t)((rem_ms % 1000U) * 1000U);
+        int r = select(ws->sock_fd + 1, &rfds, NULL, NULL, &tv);
+        if (r == 0) {
+            return -2; /* timeout */
+        }
+        if (r < 0) {
+            if (errno == EINTR && bk_port_get_time_ms() < deadline_ms) {
+                continue;
+            }
+            return -1;
+        }
 #if defined(BK_OF_BUILDING_TARGET_BK7259)
-    if (ws->mbedtls_active) {
-        int ret = mbedtls_ssl_read(&ws->ssl, buf, len);
-        return (ret > 0) ? ret : -1;
-    }
+        if (ws->mbedtls_active) {
+            int ret = mbedtls_ssl_read(&ws->ssl, buf, len);
+            if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                if (bk_port_get_time_ms() >= deadline_ms) {
+                    return -2;
+                }
+                continue;
+            }
+            return (ret > 0) ? ret : -1;
+        }
 #endif
-    ssize_t n = recv(ws->sock_fd, buf, len, 0);
-    return (int)n;
+        ssize_t n = recv(ws->sock_fd, buf, len, 0);
+        if (n < 0 && errno == EINTR && bk_port_get_time_ms() < deadline_ms) {
+            continue;
+        }
+        return (int)n;
+    }
 }
 
 static bk_err_t stream_read_exact(struct bk_ws_transport *ws,
@@ -727,7 +749,14 @@ static bool find_header_value_ci(const char *headers,
                                  char *out_val,
                                  size_t out_cap)
 {
+    if (headers == NULL || header_name == NULL || out_val == NULL || out_cap == 0U) {
+        return false;
+    }
     size_t name_len = strlen(header_name);
+    size_t out_len = 0U;
+    bool found = false;
+    out_val[0] = '\0';
+
     const char *line = headers;
     while (*line != '\0') {
         const char *line_end = strstr(line, "\r\n");
@@ -752,17 +781,23 @@ static bool find_header_value_ci(const char *headers,
                 while (v_len > 0U && (v[v_len - 1U] == ' ' || v[v_len - 1U] == '\t')) {
                     --v_len;
                 }
-                if (v_len + 1U > out_cap) {
+                size_t sep_len = found ? 2U : 0U;
+                if (out_len + sep_len + v_len + 1U > out_cap) {
                     return false;
                 }
-                memcpy(out_val, v, v_len);
-                out_val[v_len] = '\0';
-                return true;
+                if (found) {
+                    out_val[out_len++] = ',';
+                    out_val[out_len++] = ' ';
+                }
+                memcpy(out_val + out_len, v, v_len);
+                out_len += v_len;
+                out_val[out_len] = '\0';
+                found = true;
             }
         }
         line = line_end + 2;
     }
-    return false;
+    return found;
 }
 
 static bool header_value_equals_ci(const char *value, const char *expected)
@@ -936,7 +971,10 @@ bk_err_t bk_ws_transport_connect(bk_ws_transport_handle_t ws)
         return BK_ERR_CORRUPTED;
     }
 
-    if (strncmp(resp, "HTTP/1.1 101", 12) != 0 && strncmp(resp, "HTTP/1.0 101", 12) != 0) {
+    bool status_ok =
+        ((strncmp(resp, "HTTP/1.1 101", 12) == 0 || strncmp(resp, "HTTP/1.0 101", 12) == 0) &&
+         (resp[12] == ' ' || resp[12] == '\t' || resp[12] == '\r'));
+    if (!status_ok) {
         close_stream(ws);
         ws->state = BK_WS_STATE_DISCONNECTED;
         return BK_ERR_CORRUPTED;
@@ -1209,7 +1247,12 @@ bk_err_t bk_ws_transport_poll(bk_ws_transport_handle_t ws, uint32_t timeout_ms)
 
     /* Control frames (may be interleaved during fragmented message) */
     if (opcode == (uint8_t)BK_WS_FRAME_PING) {
-        (void)bk_ws_transport_send_pong(ws, payload, (size_t)payload_len);
+        bk_err_t pong_err = bk_ws_transport_send_pong(ws, payload, (size_t)payload_len);
+        if (pong_err != BK_OK) {
+            bk_port_free(payload);
+            notify_remote_disconnect(ws, 1006);
+            return pong_err;
+        }
         if (ws->cfg.rx_cb != NULL) {
             (void)ws->cfg.rx_cb(BK_WS_FRAME_PING, payload, (size_t)payload_len, ws->cfg.rx_cb_ctx);
         }

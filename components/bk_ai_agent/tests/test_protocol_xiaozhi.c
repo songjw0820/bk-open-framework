@@ -340,7 +340,10 @@ typedef struct {
     size_t rx_pos;
     bool omit_upgrade_header;
     bool omit_connection_header;
+    bool duplicate_accept_header;
+    const char *status_line;
     const char *connection_header_value;
+    const char *extra_connection_header_value;
 } mock_illegal_io_t;
 
 static int mock_io_recv(uint8_t *buf, size_t len, uint32_t timeout_ms, void *io_ctx);
@@ -368,21 +371,39 @@ static int mock_io_send(const uint8_t *buf, size_t len, void *io_ctx)
         memcpy(sec_key, k, (size_t)(ke - k));
         char accept_key[64] = {0};
         assert(bk_ws_compute_accept_key(sec_key, accept_key, sizeof(accept_key)) == BK_OK);
+        const char *status = io->status_line != NULL
+                                 ? io->status_line
+                                 : "HTTP/1.1 101 Switching Protocols";
         const char *upgrade = io->omit_upgrade_header ? "" : "Upgrade: websocket\r\n";
         const char *connection_value = io->connection_header_value != NULL ? io->connection_header_value : "Upgrade";
-        char connection[160] = {0};
+        char connection[220] = {0};
         if (!io->omit_connection_header) {
-            snprintf(connection, sizeof(connection), "Connection: %s\r\n", connection_value);
+            if (io->extra_connection_header_value != NULL) {
+                snprintf(connection,
+                         sizeof(connection),
+                         "Connection: %s\r\nConnection: %s\r\n",
+                         connection_value,
+                         io->extra_connection_header_value);
+            } else {
+                snprintf(connection, sizeof(connection), "Connection: %s\r\n", connection_value);
+            }
+        }
+        char dup_accept[96] = {0};
+        if (io->duplicate_accept_header) {
+            snprintf(dup_accept, sizeof(dup_accept), "Sec-WebSocket-Accept: %s\r\n", accept_key);
         }
         int n = snprintf((char *)io->rx_buf,
                          sizeof(io->rx_buf),
-                         "HTTP/1.1 101 Switching Protocols\r\n"
+                         "%s\r\n"
                          "%s"
                          "%s"
-                         "Sec-WebSocket-Accept: %s\r\n\r\n",
+                         "Sec-WebSocket-Accept: %s\r\n"
+                         "%s\r\n",
+                         status,
                          upgrade,
                          connection,
-                         accept_key);
+                         accept_key,
+                         dup_accept);
         io->rx_len = (size_t)n;
         io->rx_pos = 0U;
     }
@@ -393,14 +414,18 @@ static int mock_io_recv(uint8_t *buf, size_t len, uint32_t timeout_ms, void *io_
 
 static void test_upgrade_response_header_rejections(void)
 {
-    const bool omit_upgrade[] = {true, false};
-    const bool omit_connection[] = {false, true};
+    const bool omit_upgrade[] = {true, false, false, false};
+    const bool omit_connection[] = {false, true, false, false};
+    const bool dup_accept[] = {false, false, true, false};
+    const char *bad_status[] = {NULL, NULL, NULL, "HTTP/1.1 1010 Switching Protocols"};
 
-    for (size_t i = 0U; i < 2U; ++i) {
+    for (size_t i = 0U; i < 4U; ++i) {
         mock_illegal_io_t mio;
         memset(&mio, 0, sizeof(mio));
         mio.omit_upgrade_header = omit_upgrade[i];
         mio.omit_connection_header = omit_connection[i];
+        mio.duplicate_accept_header = dup_accept[i];
+        mio.status_line = bad_status[i];
         bk_ws_io_ops_t io_ops = {
             .connect_fn = mock_io_connect,
             .send_fn = mock_io_send,
@@ -438,6 +463,7 @@ static int mock_io_recv(uint8_t *buf, size_t len, uint32_t timeout_ms, void *io_
 
 static void test_connection_header_accepts_upgrade_token_list(void)
 {
+    /* Case 1: Single comma-separated Connection header */
     mock_illegal_io_t mio;
     memset(&mio, 0, sizeof(mio));
     mio.connection_header_value = "keep-alive, Upgrade";
@@ -455,6 +481,15 @@ static void test_connection_header_accepts_upgrade_token_list(void)
         .io_ops = &io_ops,
     };
     bk_ws_transport_handle_t ws = NULL;
+    assert(bk_ws_transport_create(&cfg, &ws) == BK_OK);
+    assert(bk_ws_transport_connect(ws) == BK_OK);
+    assert(bk_ws_transport_is_connected(ws));
+    bk_ws_transport_destroy(ws);
+
+    /* Case 2: Multiple separate Connection header lines (RFC 7230 Section 3.2.2) */
+    memset(&mio, 0, sizeof(mio));
+    mio.connection_header_value = "keep-alive";
+    mio.extra_connection_header_value = "Upgrade";
     assert(bk_ws_transport_create(&cfg, &ws) == BK_OK);
     assert(bk_ws_transport_connect(ws) == BK_OK);
     assert(bk_ws_transport_is_connected(ws));

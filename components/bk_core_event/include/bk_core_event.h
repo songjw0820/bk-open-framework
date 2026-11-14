@@ -47,11 +47,15 @@ bk_err_t bk_event_subscribe(bk_event_loop_handle_t loop,
 bk_err_t bk_event_unsubscribe(bk_event_loop_handle_t loop, uint32_t sub_id);
 
 bk_err_t bk_of_event_post(bk_event_loop_handle_t loop,
-                       int32_t family_id,
-                       int32_t event_id,
-                       const void *payload,
-                       size_t payload_len,
-                       uint32_t timeout_ms);
+                          int32_t family_id,
+                          int32_t event_id,
+                          const void *payload,
+                          size_t payload_len,
+                          uint32_t timeout_ms);
+
+#if !defined(BEKEN_PLATFORM) && !defined(bk_event_post)
+#define bk_event_post bk_of_event_post
+#endif
 
 /* Drain all currently queued events synchronously (useful for deterministic testing) */
 bk_err_t bk_event_loop_flush(bk_event_loop_handle_t loop, uint32_t timeout_ms);
