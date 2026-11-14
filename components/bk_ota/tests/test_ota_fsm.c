@@ -22,6 +22,21 @@ static bk_err_t ok_quiesce_cb(bool suspend, void *user_ctx)
     return BK_OK;
 }
 
+static bk_err_t test_sig_verify_cb(const bk_ota_image_header_t *hdr,
+                                   const uint8_t *payload,
+                                   size_t payload_len,
+                                   void *user_ctx)
+{
+    (void)payload;
+    (void)payload_len;
+    (void)user_ctx;
+    uint8_t acc = 0U;
+    for (size_t i = 0U; i < sizeof(hdr->ec256_signature); ++i) {
+        acc |= hdr->ec256_signature[i];
+    }
+    return acc != 0U ? BK_OK : BK_ERR_CORRUPTED;
+}
+
 static void test_rejects_unbudgeted_264k_partition(void)
 {
     uint8_t dummy[1024];
@@ -114,6 +129,17 @@ static void test_power_loss_64kb_resume_and_signature_verification(void)
         .media_quiesce_ctx = &media_suspended,
     };
 
+    bk_ota_config_t no_verifier_cfg = cfg;
+    no_verifier_cfg.storage = NULL;
+    bk_ota_handle_t no_verifier_ota = NULL;
+    assert(bk_ota_create(&no_verifier_cfg, &no_verifier_ota) == BK_OK);
+    assert(bk_ota_begin(no_verifier_ota, &hdr) == BK_OK);
+    assert(bk_ota_write_chunk(no_verifier_ota, 0U, fw_img, img_sz) == BK_OK);
+    assert(bk_ota_finalize(no_verifier_ota) == BK_ERR_NOT_SUPPORTED);
+    bk_ota_destroy(no_verifier_ota);
+
+    cfg.sig_verify_fn = test_sig_verify_cb;
+
     /* Session 1: write 64KB chunk, then simulate power loss before remaining 32KB */
     bk_ota_handle_t ota1 = NULL;
     assert(bk_ota_create(&cfg, &ota1) == BK_OK);
@@ -170,6 +196,6 @@ int main(void)
     assert(mstats.current_allocated_bytes == 0U);
     assert(mstats.active_allocations == 0U);
 
-    printf("PASS: test_ota_fsm (264KB gate rejection, media quiesce, anti-rollback, 64KB resume, CRC/EC256 check)\n");
+    printf("PASS: test_ota_fsm (264KB gate rejection, media quiesce, anti-rollback, 64KB resume, CRC/signature verifier gate)\n");
     return 0;
 }

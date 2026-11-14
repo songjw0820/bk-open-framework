@@ -92,7 +92,8 @@ bk_err_t bk_ota_write_chunk(bk_ota_handle_t ota,
  * Finalizes download:
  * 1. Verifies total written bytes == hdr->image_size
  * 2. Verifies CRC32 of staged payload == hdr->image_crc32 (returns BK_ERR_CRC_MISMATCH on mismatch)
- * 3. Verifies EC-P256 signature via sig_verify_fn (returns BK_ERR_CORRUPTED on bad signature)
+ * 3. Verifies the image signature via sig_verify_fn. A target integration must
+ *    provide this callback. If it is missing, returns BK_ERR_NOT_SUPPORTED.
  * 4. Transitions to VERIFIED_PENDING_REBOOT (OVERWRITE) or TRIAL_PENDING_CONFIRM (XIP)
  */
 bk_err_t bk_ota_finalize(bk_ota_handle_t ota);

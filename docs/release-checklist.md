@@ -1,8 +1,8 @@
 # BK Open Framework 发布与实机验收清单（Release & Hardware Acceptance Checklist）
 
-> **当前状态声明（Tier 1 Host Verified · Tier 2 Container Build Verified on Current Checkout · Locked-SHA & Hardware Pending）**：
-> - **已验证（Verified）**：远端锁定 SHA、静态许可证审计（[bk_solution_ai-dependency-inventory.md](legal/bk_solution_ai-dependency-inventory.md)）、`./tools/bk` Manifest/Doctor 单测（12/12 PASS）、**Tier 1 `posix_sim` + `BK7259` 目标适配层 CTest 全量套件（15/15 PASS，开启 `-Wall -Wextra -Werror -fsanitize=address,undefined` 零内存泄漏）**，以及基于 `bekencorp/armino-idk:1.5` 容器与当前 SDK checkout 的 **Docker ARM AP/CP 目标构建（生成 AP/CP ELF 与 `all-app.bin`）**。
-> - **待执行（Pending）**：在 Profile 精确锁定的 SDK SHA（`584b947920c414230f9909375f008e7d6a2c6c6b`）上复现容器目标构建、Tier 3/4 `bk7259_robot` 实机验收及 `bk_ota` 实机尺寸/BL2 前置证据门禁。
+> **当前状态声明（Tier 1 Host 已验证，锁定 SHA 与硬件门禁待执行）**：
+> - **已验证（Verified）**：远端锁定 SHA、静态许可证审计、PyYAML 6.0.3 环境下的 `12/12` Python 单测，以及加载 libopus 动态库后的 `15/15` CTest。
+> - **待执行（Pending）**：复现精确锁定 SHA 的容器目标构建，完成 Tier 3/4 `bk7259_robot` 实机验收及 `bk_ota` 实机尺寸、BL2 和真实 EC-P256 验证门禁。
 
 ---
 
@@ -32,8 +32,8 @@
 - [x] **网络状态机 (`bk_net`)**：连接、断线指数退避重连、5-AP MRU 凭证管理、SNTP 超时与 TLS 错误码传播测试通过（`ctest -R test_net_fsm` + `example_01_wifi_provision` + `example_02_lan_device`）。
 - [x] **外设与产品策略状态机 (`bk_button`, `bk_led_effect`, `bk_motion`, `bk_battery_policy`, `bk_robot_face`)**：GPIO/ADC 阶梯按键消抖与长按保持、灯效定时抢占与二次伽马呼吸 PWM 波形、舵机 S-Curve 插补与预设动作、电池滑动平均抗跌落滤波与施密特迟滞、表情眨眼与口型同步测试通过（`ctest -R test_peripherals_and_media` + `example_05_peripheral_control`）。
 - [x] **媒体缓冲与混音算术 (`bk_audio_mixer`, `bk_video_frame_pool`)**：20ms PCM 帧混音/Ducking 防溢出、64B 对齐 PSRAM 原子引用计数、Cache Clean/Invalidate 统计与 LVGL 递归锁测试通过（`ctest -R test_peripherals_and_media` + `example_03_audio_player` + `example_04_camera_stream`）。
-- [x] **小智协议、机器人主控与 BK7259 目标适配层 (`protocol_xiaozhi`, `transport_websocket`, `bk_robot_product`, `test_bk7259_target_adapter`)**：RFC 6455 本地回环 TCP 握手、原生 `libopus` 3×20ms <-> 60ms 编解码、Listen (`start/stop/detect`) / Abort / TTS / LLM Emotion / STT 控制帧、MCP (`jsonrpc: "2.0"`)、`bk_robot_product` 端到端编排及 `BK_OF_BUILDING_TARGET_BK7259` 适配层测试通过（`ctest -R "test_protocol_xiaozhi|example_06_robot_reference|test_bk7259_target_adapter"`）。
-- [x] **OTA 状态机与乐鑫组件兼容层 (`bk_ota`, `bk_esp_compat`)**：264KB 未重算分区拦截（`BK_ERR_NOT_VERIFIED`）、媒体管线挂起（`BK_ERR_OTA_MEDIA_BUSY`）、安全计数器防降级、64KB 断电续传检查点、CRC32/EC-P256 签名校验（`ctest -R test_ota_fsm`），以及 `esp_heap_caps` 64B DMA 对齐、`nvs_flash`、`esp_event`、`esp_timer`、`iot_button`、`led_indicator` 兼容层单测通过（`ctest -R test_esp_compat`）。
+- [x] **小智协议、机器人主控与 BK7259 目标适配层 (`protocol_xiaozhi`, `transport_websocket`, `bk_robot_product`, `test_bk7259_target_adapter`)**：在加载 libopus 动态库后，RFC 6455 本地回环、原生 Opus 编解码、控制帧、MCP、机器人编排和目标适配层测试通过。
+- [x] **OTA 状态机与乐鑫组件兼容层 (`bk_ota`, `bk_esp_compat`)**：264KB 未重算分区拦截、媒体管线挂起、安全计数器防降级、64KB 续传状态、CRC32 和“未提供签名验证器时拒绝”测试通过。真实 EC-P256 校验仍需目标集成和实机验证。
 
 ---
 

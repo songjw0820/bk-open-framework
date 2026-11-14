@@ -22,20 +22,17 @@ struct bk_ota_ctx {
     bool media_quiesced;
 };
 
-static bk_err_t default_ec256_sig_check(const bk_ota_image_header_t *hdr,
-                                        const uint8_t *payload,
-                                        size_t payload_len,
-                                        void *user_ctx)
+static bk_err_t missing_sig_verifier(const bk_ota_image_header_t *hdr,
+                                     const uint8_t *payload,
+                                     size_t payload_len,
+                                     void *user_ctx)
 {
+    /* A cryptographic verifier must be supplied by the target integration. */
+    (void)hdr;
     (void)payload;
     (void)payload_len;
     (void)user_ctx;
-    /* Reject all-zero signature by default */
-    uint8_t acc = 0U;
-    for (size_t i = 0U; i < sizeof(hdr->ec256_signature); ++i) {
-        acc |= hdr->ec256_signature[i];
-    }
-    return acc != 0U ? BK_OK : BK_ERR_CORRUPTED;
+    return BK_ERR_NOT_SUPPORTED;
 }
 
 bk_err_t bk_ota_create(const bk_ota_config_t *cfg, bk_ota_handle_t *out_ota)
@@ -207,7 +204,7 @@ bk_err_t bk_ota_finalize(bk_ota_handle_t ota)
 
     bk_ota_sig_verify_fn_t verify_fn = ota->cfg.sig_verify_fn != NULL
                                            ? ota->cfg.sig_verify_fn
-                                           : default_ec256_sig_check;
+                                           : missing_sig_verifier;
     bk_err_t sig_err = verify_fn(
         &ota->active_hdr, ota->cfg.staging_buf, ota->active_hdr.image_size, ota->cfg.sig_verify_ctx);
     if (sig_err != BK_OK) {
@@ -215,7 +212,7 @@ bk_err_t bk_ota_finalize(bk_ota_handle_t ota)
             (void)bk_storage_delete_key(ota->cfg.storage, "ota", "ckpt");
         }
         ota->state = BK_OTA_STATE_ABORTED;
-        return BK_ERR_CORRUPTED;
+        return sig_err == BK_ERR_NOT_SUPPORTED ? BK_ERR_NOT_SUPPORTED : BK_ERR_CORRUPTED;
     }
 
     if (ota->cfg.storage != NULL) {

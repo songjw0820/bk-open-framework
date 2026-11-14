@@ -1,6 +1,6 @@
-# BK7258/BK7259 开源应用框架设计（Rev 5 · 全量组件、乐鑫生态兼容层与 Tier 1 门禁已交付）
+# BK7258/BK7259 开源应用框架设计（Rev 5 · 组件实现完成，目标平台门禁待验证）
 
-> **唯一事实来源说明（Single Source of Truth）**：本设计规范与 [实施计划](../plans/2026-11-12-bk-open-framework-implementation.md)、[架构深度评审与演进规范](../../reviews/2026-11-13-architecture-review-and-espressif-comparison.md)、[乐鑫组件移植指南](../../espressif-component-porting-guide.md) 保持严格同步。当前处于 **Tier 1 Host 全量 15/15 CTest + 12/12 Python 单测 100% 通过、Docker 容器目标构建已验证、待锁定 SHA 目标构建复现与实机验收** 阶段。
+> **唯一事实来源说明（Single Source of Truth）**：本设计规范与 [实施计划](../plans/2026-11-12-bk-open-framework-implementation.md)、[架构深度评审与演进规范](../../reviews/2026-11-13-architecture-review-and-espressif-comparison.md)、[乐鑫组件移植指南](../../espressif-component-porting-guide.md) 保持严格同步。当前处于 **Tier 1 Host 已通过、锁定 SHA 目标构建待复现、实机验收待执行** 阶段。
 
 ## 1. 目标与背景
 
@@ -13,7 +13,7 @@
 - 新用户可以在统一仓库中完成环境配置、版本检查、选择板卡、编译并烧录第一个示例。
 - 业务代码通过统一公共 API 与 Capability Contract（能力契约）访问能力，芯片差异不泄漏到业务代码。
 - 每个公共组件具备实质性状态机、并发安全与生命周期契约（拒绝无价值的纯改名薄包装），不再在每个 Demo 中复制配网、重连、KV 存储、混音、帧池、按键消抖和灯效代码。
-- 提供 `bk_esp_compat` 兼容层与 `idf_component_register` CMake 桥接器，支持将 `https://components.espressif.com/` 中的 Tier A/B 经典组件零修改或微改迁移至本框架。
+- 提供 `bk_esp_compat` 兼容层与 `idf_component_register` CMake 桥接器，为经过版本锁定和目标构建验证的 Tier A/B 组件提供迁移基础。
 - 至少提供三类可验证示例：最小联网设备、音视频/外设设备、开源 AI 机器人应用。
 - 文档能够清晰说明“直接使用 SDK 的能力”、“本框架新增的机制组件”与“产品策略组件/可选插件”之间的边界。
 
@@ -76,7 +76,7 @@ Armino/BK AVDK SDK（外置锁定）
    - `bk_ai_agent`（可选）：拆分为底层 `transport_websocket`（RFC 6455 + mbedTLS CA/SNI）与独立的 `protocol_xiaozhi`（Hello 握手、Listen `start/stop/detect`、Abort、TTS/LLM Emotion/STT 解析、原生 `libopus` 3×20ms<->60ms 编解码、MCP JSON-RPC 2.0 主路径）。
    - `bk_esp_compat`（可选）：ESP-IDF / ESP-IoT-Solution 兼容层（提供 `idf_component_register` CMake 桥接、`esp_err`、`esp_log`、`esp_check`、`esp_heap_caps`、`esp_timer`、`esp_event`、`nvs_flash`、`iot_button`、`led_indicator`）。
 2. **暂缓目标能力组件（`deferred_target_components`）**：
-   - `bk_ota`：已完成完整状态机、264KB 分区拦截、媒体管线挂起（`BK_ERR_OTA_MEDIA_BUSY`）、防回滚计数器、64KB 断电续传检查点、CRC32/EC-P256 签名校验与候选重算分区表（`boards/bk7259_robot/partitions/auto_partitions_ota.csv`）及单测（`test_ota_fsm`）；在实机完成 5 项前置证据测量前，在 `platforms/bk7259_robot.yaml` 中保持列于 `deferred_target_components`。
+   - `bk_ota`：已完成状态机、264KB 分区拦截、媒体管线挂起（`BK_ERR_OTA_MEDIA_BUSY`）、防回滚计数器、64KB 断电续传检查点、CRC32 和签名验证器缺失时的拒绝路径。真实 EC-P256 验证、公钥配置和候选分区表仍待实机证据，在实机完成 5 项前置证据测量前保持列于 `deferred_target_components`。
 3. **产品策略组件（`product_components/` 及 `products/bk7259_robot/`，不进入 `minimal` 依赖）**：
    - `bk_motion`：舵机关键帧三次 Hermite S-Curve 加减速插补、机械限位保护（Yaw `[-90,+90]`、Pitch `[-35,+35]`）、多段关键帧序列与预设动作（点头、摇头、环视、归中）。
    - `bk_robot_face`：机器人表情映射（对接小智 LLM emotion 字符串）、周期眨眼状态机与 TTS 播报口型同步动画。
@@ -87,14 +87,14 @@ Armino/BK AVDK SDK（外置锁定）
 
 ## 6. 四级验证门禁（4-Tier Verification Gate）
 
-1. **Tier 1（Host 行为门禁 - `posix_sim`）**：已全量通过（15/15 CTest + 12/12 Python 单测，开启 `-Wall -Wextra -Werror -fsanitize=address,undefined` 零内存泄漏）。
-2. **Tier 2（SDK 编译与裁剪门禁 - `bk7259_v4`）**：已在 `bekencorp/armino-idk:1.5` 容器与当前 SDK checkout 上验证生成 AP/CP ELF 与 `all-app.bin`；待在锁定 SHA 上完成复现构建。
+1. **Tier 1（Host 行为门禁 - `posix_sim`）**：使用 PyYAML 6.0.3 和 libopus 动态库完成 `15/15` CTest 与 `12/12` Python 单测。验证记录必须包含依赖来源。
+2. **Tier 2（SDK 编译与裁剪门禁 - `bk7259_v4`）**：锁定 SHA 的 AP/CP ELF 与 `all-app.bin` 仍待复现并保存产物摘要。
 3. **Tier 3（故障注入与压力门禁）**：验证弱网断线重连、SNTP 失败/过期证书拒绝、满缓冲背压。
 4. **Tier 4（真实板卡验收门禁 - `bk7259_robot`）**：按 [docs/release-checklist.md](../../release-checklist.md) 逐项在实机硬件上完成验收并填入真实日志与数据。
 
 ## 7. 分阶段增量交付状态
 
-1. **Step 0（构建探针与静态证据）**：已完成 `probe.sh`、静态 SDK 事实核查、许可证审计与容器构建验证。
+1. **Step 0（构建探针与静态证据）**：已完成 `probe.sh`、静态 SDK 事实核查和许可证审计。锁定 SHA 容器构建证据仍待补齐。
 2. **Step 1（M1 最小公共层与联网）**：已交付 `./tools/bk`、`bk_common`、`bk_port`、`bk_core_event`、`bk_storage`、`bk_board`、`bk_net` 及 `01_wifi_provision`、`02_lan_device`。
 3. **Step 2（M2 单一媒体与基础外设）**：已交付 `bk_button`（GPIO+ADC）、`bk_led_effect`（定时抢占+PWM）、`bk_audio_session`、`bk_audio_mixer`、`bk_video_frame_pool`、`bk_ui_core` 及示例 `03`~`05`。
 4. **Step 3（M3 小智协议、机器人产品工程与乐鑫兼容层）**：已交付 `bk_ai_agent`、`product_components/*`、`products/bk7259_robot`、`bk_esp_compat`、`plugins/plugin_agora` 及 `06_robot_reference`。

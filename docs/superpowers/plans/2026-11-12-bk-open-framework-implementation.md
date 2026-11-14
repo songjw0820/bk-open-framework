@@ -55,7 +55,7 @@
 
 - [x] **Step 1: Write unit tests for manifest schema, `tag_object_sha`/`peeled_commit_sha` verification, and minimal profile isolation**
 - [x] **Step 2: Implement `tools/bk_manifest.py`, `tools/bk_fetch.py`, and `./tools/bk`**
-- [x] **Step 3: Run unit test suite (`python3 -m unittest discover -s tools/tests -v`, 12/12 PASS) (Tier 1 Gate)**
+- [x] **Step 3: Run unit test suite (`python3 -m unittest discover -s tools/tests -v`) (Tier 1 Gate)**：在临时 Python 虚拟环境安装 PyYAML 6.0.3 后 `12/12 PASS`。
 - [x] **Step 4: Commit**
 
 ---
@@ -213,7 +213,7 @@
   3. Measured compressed `ota.bin` package size;
   4. Verified BL2 security configuration;
   5. Explicit single-strategy selection (`CONFIG_SECURE_OTA_OVERWRITE` vs `CONFIG_SECURE_OTA_XIP`).
-- [x] **Step 2: Write Tier 1 tests for 264KB unbudgeted slot rejection (`BK_ERR_NOT_VERIFIED`), media quiesce failure abort (`BK_ERR_OTA_MEDIA_BUSY`), corrupted header/signature rejection, security counter anti-rollback check, and 64KB interrupted download resume (`test_ota_fsm`)**
+- [x] **Step 2: Write Tier 1 tests for 264KB unbudgeted slot rejection (`BK_ERR_NOT_VERIFIED`), media quiesce failure abort (`BK_ERR_OTA_MEDIA_BUSY`), missing signature verifier rejection, security counter anti-rollback check, and 64KB interrupted download resume (`test_ota_fsm`)**
 - [x] **Step 3a: Implement `bk_ota` and pass Tier 1 (`test_ota_fsm` PASS under ASan/UBSan)**
 - [ ] **Step 3b: Run Tier 4 hardware tests on `bk7259_robot` (normal upgrade, bad signature rejection, mid-download power loss)**
 - [ ] **Step 4: Promote `bk_ota` from `deferred_target_components` to `components` in `platforms/bk7259_robot.yaml` after Step 1 & Step 3b complete**

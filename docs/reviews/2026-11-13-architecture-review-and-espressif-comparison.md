@@ -1,7 +1,7 @@
 # BK Open Framework 架构深度评审与演进规范（Rev 4 · 方案复审通过，Task 0 阻塞项与待验证项已锁定）
 
 - **文档路径**：`docs/reviews/2026-11-13-architecture-review-and-espressif-comparison.md`
-- **当前评级状态**：**方案复审通过；实施放行阻塞于 Task 0 实测编译（`not_run_toolchain_unavailable`）**
+- **当前评级状态**：**架构方向可继续；实施放行仍阻塞于 Host 依赖、锁定 SHA 目标构建、实机验证和 OTA 密码学验收**
 - **唯一事实来源同步文件**：
   - 设计规范：[docs/superpowers/specs/2026-11-12-bk-open-framework-design.md](../superpowers/specs/2026-11-12-bk-open-framework-design.md)
   - 实施计划：[docs/superpowers/plans/2026-11-12-bk-open-framework-implementation.md](../superpowers/plans/2026-11-12-bk-open-framework-implementation.md)
@@ -37,16 +37,14 @@
    - **产品策略组件（`product_components/`）**：`bk_motion`、`bk_robot_face`、`bk_battery_policy`。
    - **可选商业插件（`plugins/`）**：`plugin_agora`。
 4. **静态 SDK 事实与待验证硬件行为严格分离**：
-   - **已核实的 SDK 源码事实**：PL310 32B cache line (`l2_cache.c`)、64B `BK_FRAME_QUEUE_ALIGN_SIZE` (`bk_frame_queue.h`)、`bk_dcache_addr_is_cacheable` / `bk_dcache_clean_for_producer` / `bk_dcache_invalidate_for_consumer` (`cache.c`)、`psram_malloc` / `psram_cache_malloc` (`mem.h`)、BL2 EC-P256 签名与 `beken_robot` 8MB 分区表 `ota = 264K` 限制。
+   - **已核实的 SDK 源码事实**：PL310 32B cache line (`l2_cache.c`)、64B `BK_FRAME_QUEUE_ALIGN_SIZE` (`bk_frame_queue.h`)、`bk_dcache_addr_is_cacheable` / `bk_dcache_clean_for_producer` / `bk_dcache_invalidate_for_consumer` (`cache.c`)、`psram_malloc` 及 PSRAM slab 划分 (`mem.h` / `ram_regions.csv`)、BL2 EC-P256 签名与 `beken_robot` 8MB 分区表 `ota = 264K` 限制。
    - **待实测验证的硬件行为**：摄像头/JPEG/LCD 外设 DMA 在 `bk7259_robot` 上对 Cached/Uncached PSRAM Slab 的实际访问约束与 ownership 切换时序，需在 Tier 2/Tier 4 实机测试中验证后写入板级契约。
 
 ---
 
-## 二、 当前仓库实施进展与门禁状态（Rev 5 实测基线）
+## 二、 当前仓库实施进展与门禁状态（Rev 5 复核基线）
 
-1. **Tier 1 Host 行为门禁（100% 完成，15/15 CTest + 12/12 Python 单测通过）**：
-   - 全量核心组件（`bk_common`、`bk_port`、`bk_core_event`、`bk_storage`、`bk_health`、`bk_board`、`bk_net`）、外设与媒体组件（`bk_button` 含 ADC 阶梯键、`bk_led_effect` 含定时抢占与 PWM 呼吸波形、`bk_audio_session`、`bk_audio_mixer`、`bk_video_frame_pool`、`bk_ui_core`）、AI 协议组件（`transport_websocket` + `protocol_xiaozhi` 含 Hello/Listen/Abort/TTS/LLM Emotion/STT/MCP/libopus）、暂缓目标组件（`bk_ota` 含 264KB 分区拒绝、媒体挂起、防回滚、64KB 断电续传、CRC32/EC-P256 校验）、产品策略组件（`bk_motion` S-Curve 轨迹、`bk_robot_face` 眨眼/口型同步、`bk_battery_policy` 滑动滤波+施密特迟滞）与机器人主控（`products/bk7259_robot`）均已完成并在 `-Wall -Wextra -Werror -fsanitize=address,undefined` 下通过验证。
-2. **乐鑫组件生态兼容层（`bk_esp_compat`）**：
-   - 已交付 [`components/bk_esp_compat`](../../components/bk_esp_compat/) 与 [`docs/espressif-component-porting-guide.md`](../espressif-component-porting-guide.md)，提供 `idf_component_register` -> `armino_component_register` CMake 桥接器及 `esp_err`、`esp_log`、`esp_check`、`esp_heap_caps`（自动 64B DMA 对齐）、`esp_timer`、`esp_event`、`nvs_flash`、`iot_button`、`led_indicator` 兼容实现（`test_esp_compat` 通过）。
-3. **Tier 2 ~ Tier 4 剩余硬件门禁**：
-   - 已在 `bekencorp/armino-idk:1.5` 容器与当前 SDK checkout 上验证生成 AP/CP ELF 与 `all-app.bin`；下一步需在精确锁定 SHA（`584b947920c414230f9909375f008e7d6a2c6c6b`）上复现容器构建，并在 `bk7259_robot` 实机上完成外设 DMA、音频、WSS 与 OTA 实测验收。
+1. **Tier 1 Host 行为门禁已在补齐依赖后通过**：在开启 `-Wall -Wextra -Werror -fsanitize=address,undefined` 的构建目录中，使用 PyYAML 6.0.3 和现有 libopus 动态库完成 `15/15` CTest 与 `12/12` Python 单测。未设置这两个依赖时，协议测试和 Python 测试会失败，验证环境必须记录依赖来源。
+2. **乐鑫组件生态兼容层（`bk_esp_compat`）**：已交付 [`components/bk_esp_compat`](../../components/bk_esp_compat/) 与 [`docs/espressif-component-porting-guide.md`](../espressif-component-porting-guide.md)，提供经过 Host 单测覆盖的 ESP-IDF API 子集。`esp_timer`、`esp_event`、NVS、按键和 LED 的运行时语义仍需按具体组件版本补充验证，不能据此承诺所有 Registry 组件零修改移植。
+3. **OTA 安全边界**：`bk_ota` 在未提供 `sig_verify_fn` 时现在返回 `BK_ERR_NOT_SUPPORTED`，不会把非零字节当作 EC-P256 签名通过。真正的 mbedTLS/SDK EC-P256 验证、公钥来源和签名覆盖范围仍由目标集成提供。
+4. **Tier 2 ~ Tier 4 剩余硬件门禁**：平台清单仍记录 AP/CP 构建和 `all-app.bin` 为 `not_run_toolchain_unavailable`。需要在精确锁定 SHA（`584b947920c414230f9909375f008e7d6a2c6c6b`，以及 robot solution `a1e865e156e8dc31dfb360219c33a6a6d908ea98`）上复现构建，保存 ELF、`all-app.bin` 和 SHA256，并在 `bk7259_robot` 实机完成外设 DMA、音频、WSS 与 OTA 验收。
