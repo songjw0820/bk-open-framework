@@ -1,0 +1,6 @@
+menu "BK Open Framework LED Effect Queue"
+    config BK_OF_LED_EFFECT_ENABLE
+        bool "Enable BK Open Framework priority LED effect controller"
+        default y
+        depends on BK_OF_PORT_ENABLE
+endmenu

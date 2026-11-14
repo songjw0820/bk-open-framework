@@ -20,6 +20,12 @@ add_subdirectory(components/bk_storage)
 add_subdirectory(components/bk_health)
 add_subdirectory(components/bk_board)
 add_subdirectory(components/bk_net)
+add_subdirectory(components/bk_button)
+add_subdirectory(components/bk_led_effect)
+add_subdirectory(components/bk_audio_session)
+add_subdirectory(components/bk_audio_mixer)
+add_subdirectory(components/bk_video_frame_pool)
+add_subdirectory(components/bk_ui_core)
 
 add_executable(test_event_loop components/bk_core_event/tests/test_event_loop.c)
 target_link_libraries(test_event_loop PRIVATE bk_core_event bk_port bk_common)
@@ -44,3 +50,22 @@ add_test(NAME example_01_wifi_provision COMMAND example_01_wifi_provision)
 add_executable(example_02_lan_device examples/02_lan_device/main.c)
 target_link_libraries(example_02_lan_device PRIVATE bk_net bk_board bk_port bk_common)
 add_test(NAME example_02_lan_device COMMAND example_02_lan_device)
+
+add_executable(test_peripherals_and_media components/bk_button/tests/test_peripherals_and_media.c)
+target_link_libraries(test_peripherals_and_media PRIVATE
+    bk_button bk_led_effect bk_audio_mixer bk_audio_session
+    bk_video_frame_pool bk_ui_core bk_board bk_port bk_common
+)
+add_test(NAME test_peripherals_and_media COMMAND test_peripherals_and_media)
+
+add_executable(example_03_audio_player examples/03_audio_player/main.c)
+target_link_libraries(example_03_audio_player PRIVATE bk_audio_mixer bk_audio_session bk_board bk_port bk_common)
+add_test(NAME example_03_audio_player COMMAND example_03_audio_player)
+
+add_executable(example_04_camera_stream examples/04_camera_stream/main.c)
+target_link_libraries(example_04_camera_stream PRIVATE bk_video_frame_pool bk_ui_core bk_board bk_port bk_common)
+add_test(NAME example_04_camera_stream COMMAND example_04_camera_stream)
+
+add_executable(example_05_peripheral_control examples/05_peripheral_control/main.c)
+target_link_libraries(example_05_peripheral_control PRIVATE bk_button bk_led_effect bk_board bk_port bk_common)
+add_test(NAME example_05_peripheral_control COMMAND example_05_peripheral_control)

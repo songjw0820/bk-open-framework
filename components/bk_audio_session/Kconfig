@@ -1,0 +1,6 @@
+menu "BK Open Framework Audio Session"
+    config BK_OF_AUDIO_SESSION_ENABLE
+        bool "Enable BK Open Framework 20ms PCM audio session and ringbuffer"
+        default y
+        depends on BK_OF_BOARD_ENABLE && BK_OF_PORT_ENABLE
+endmenu
