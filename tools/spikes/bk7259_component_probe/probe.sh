@@ -3,14 +3,14 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: probe.sh [--profile minimal|robot] [--sdk-dir PATH] [--solution-dir PATH] [--build]
+Usage: probe.sh [--profile minimal|robot] --sdk-dir PATH [--solution-dir PATH] [--build]
 
 Profiles:
   minimal  Validate/build against pure SDK project (bk_avdk_smp/projects/app). Does NOT use bk_solution_ai.
   robot    Validate/build against robot solution project (bk_solution_ai/projects/beken_robot). Default if --solution-dir is given.
 
-Without --build, validate AP/CP entry points and print the expected artifact path.
-With --build, invoke the Armino project build and require all-app.bin.
+Without --build, validate AP/CP entry points and print the expected artifact path under <SDK_DIR>/build/bk7259/<project>/package/all-app.bin.
+With --build, invoke the Armino project build via 'make -C <SDK_DIR>' and require <SDK_DIR>/build/bk7259/<project>/package/all-app.bin.
 USAGE
 }
 
@@ -72,7 +72,13 @@ for required in \
   fi
 done
 
-artifact="$project_dir/build/bk7259/$project_name/package/all-app.bin"
+# Per bk_avdk_smp/tools/build_main.mk:
+# When invoked via 'make -C "$sdk_dir" bk7259 PROJECT="$project_name" PROJECT_DIR="$project_dir"'
+# without an explicit BUILD_DIR override, PROJECT_BUILD_DIR defaults to:
+#   $(CURDIR)/build/$(ARMINO_SOC_NAME)/$(PROJECT_NAME)
+# i.e. "$sdk_dir/build/bk7259/$project_name".
+sdk_build_root="${sdk_dir:-<SDK_DIR>}"
+artifact="$sdk_build_root/build/bk7259/$project_name/package/all-app.bin"
 printf '%s\n' \
   "Profile: $profile" \
   "AP entry: $project_dir/ap/CMakeLists.txt" \

@@ -1,29 +1,22 @@
-# BK7258/BK7259 开源应用框架 Implementation Plan（Rev 3 · 已对齐评审契约与增量路线）
+# BK7258/BK7259 开源应用框架 Implementation Plan（Rev 4 · 已对齐复审结论与阻塞门禁）
 
-> **唯一事实来源（Single Source of Truth）**：本实施计划已与 [设计规范](../specs/2026-11-12-bk-open-framework-design.md)、[架构评审与演进规范](../../reviews/2026-11-13-architecture-review-and-espressif-comparison.md) 及 [发布验收清单](../../release-checklist.md) 严格对齐。所有执行代理必须以本计划中的细粒度组件拆分、CP 模板隔离规则与四级门禁为准。
+> **唯一事实来源与放行门禁说明**：本实施计划与 [设计规范](../specs/2026-11-12-bk-open-framework-design.md)、[架构评审与演进规范](../../reviews/2026-11-13-architecture-review-and-espressif-comparison.md) 及 [发布验收清单](../../release-checklist.md) 保持严格同步。
+> **重要约束**：在 **Task 0（使用锁定 SDK 实际跑通 `minimal` 与 `robot` 两次 `probe.sh --build` 并记录真实 `all-app.bin` 路径、大小与日志）** 完成前，**禁止进入 Task 1+ 的正式组件实现**。
 
 **Goal:** 创建独立的 BK 开源应用框架仓库，Phase 1/2 以 `bk7259_robot`（BK7259, `release/v4.0.1.11`）为唯一验证硬件，复用 BK 官方 SDK（以及仅在 `robot` profile 下可选复用的 `bk_solution_ai`），按证据驱动的增量顺序交付具备实质状态机与安全契约的机制组件与产品组件。
 
 **Architecture:**
-- 框架仓库与 `bk_avdk_smp`、`bk_solution_ai` 外置分离，通过 manifest 锁定 `release/v4.0.1.11`（同时记录 Tag Object SHA 与 Peeled Commit SHA）。
+- 框架仓库与 `bk_avdk_smp`、`bk_solution_ai` 外置分离，通过 manifest 锁定 `release/v4.0.1.11`（使用无歧义字段 `tag_object_sha` 与 `peeled_commit_sha`）。
 - **`bk7259_minimal` 与 `bk_solution_ai` 100% 物理隔离**：`bk7259_minimal` 仅依赖 `bk_avdk_smp`，其受控 CP 模板直接取自 `bk_avdk_smp/projects/app/cp`；仅 `bk7259_robot` profile 允许引用 `bk_solution_ai/projects/beken_robot/cp`。
-- 采用 **`Public API + Capability Contract + Platform Backend (bk7259_v4 / posix_sim)`** 架构，将基础机制组件（`components/*`）与产品策略组件（`product_components/*`）及专有插件（`plugins/*`）严格分离。
+- 采用 **`Public API + Capability Contract + Platform Backend (bk7259_v4 / posix_sim)`** 架构，将基础机制组件（`components/*`）、暂缓目标能力组件（`bk_ota`）、产品策略组件（`product_components/*`）及专有插件（`plugins/*`）严格分离。
 
 **Tech Stack:** C11, Make/CMake, Kconfig, Armino SMP (`release/v4.0.1.11`), Python/Shell CLI, CTest/PyTest, Docker/GitHub Actions.
 
 **Spec:** [docs/superpowers/specs/2026-11-12-bk-open-framework-design.md](../specs/2026-11-12-bk-open-framework-design.md)
 
-## Global Constraints
-
-- Phase 1/2 只支持 `bk7259_robot`（BK7259）；`BK7258 (release/v3.1.1.x)` 整体归入 Phase 3，不进入当前交付门槛。
-- `bk7259_minimal` 严禁直接或间接引用 `bk_solution_ai` 中的任何文件（包括 CP 配置模板）。
-- 第一阶段不承诺未经验证的“全自动 CP 生成器（Auto-CP）”，仅对受控 CP 模板执行 Schema 与 diff 校验。
-- 公共框架采用 Apache-2.0；Agora 等商业闭源 SDK 放入 `plugins/plugin_agora`；小智协议适配放入独立组件 `components/bk_ai_agent/protocol_xiaozhi`（声明上游协议文档为 MIT 许可证，以 MCP JSON-RPC 2.0 为唯一主路径）。
-- 遵循 **Tier 1 (Host `posix_sim`) -> Tier 2 (SDK Cross-Compile `all-app.bin`) -> Tier 3 (Fault Injection) -> Tier 4 (`bk7259_robot` Real Hardware)** 四级验证门禁，未通过上一级门禁不得宣称闭合。
-
 ---
 
-### Task 0: 闭合 BK7259 AP/CP 构建集成、分区审计与硬件事实清单 Spike（前置阻塞门禁）
+### Task 0: 闭合 BK7259 AP/CP 构建集成、真实 `all-app.bin` 产物与硬件事实清单 Spike（当前前置阻塞门禁）
 
 **Files:**
 - Modify: `docs/platforms/bk7259_v4.0.1.11.md`
@@ -33,19 +26,19 @@
 - Modify: `docs/legal/bk_solution_ai-dependency-inventory.md`
 
 **Interfaces & Gate Criteria:**
-- `bk7259_minimal` verifies AP/CP build against `bk_avdk_smp/projects/app` ONLY (without `--solution-dir`).
-- `bk7259_robot` verifies AP/CP build against `bk_avdk_smp` + `bk_solution_ai/projects/beken_robot`.
+- `probe.sh --profile minimal --sdk-dir <SDK> --build` builds `bk_avdk_smp/projects/app` ONLY (without `--solution-dir`) and verifies `<SDK>/build/bk7259/app/package/all-app.bin`.
+- `probe.sh --profile robot --sdk-dir <SDK> --solution-dir <SOL> --build` builds `bk_solution_ai/projects/beken_robot` and verifies `<SDK>/build/bk7259/beken_robot/package/all-app.bin`.
 - Empty external component compiles on AP/CP, links into `all-app.bin`, and is excluded when its Kconfig switch is `n`.
 
-- [ ] **Step 1: Verify and record both Tag Object SHA and Peeled Commit SHA for `release/v4.0.1.11`**
-- [ ] **Step 2: Record verified SDK facts (L2 PL310 32B cache line, 64B `bk_frame_queue` alignment, `bk_dcache_clean_for_producer`/`bk_dcache_invalidate_for_consumer`, and `beken_robot` 8MB partition table `264K` `ota` limitation) in `docs/platforms/bk7259_v4.0.1.11.md`**
-- [ ] **Step 3: In an environment with the locked SDK checkout and Armino toolchain, run `probe.sh --build` for both `minimal` (`projects/app`) and `robot` (`projects/beken_robot`), verifying `all-app.bin` generation and Kconfig exclusion**
-- [ ] **Step 4: Complete license/redistribution audit for any files referenced from `bk_solution_ai`**
-- [ ] **Step 5: Update `verification` status in `platforms/bk7259_*.yaml` from `not_run_toolchain_unavailable` to verified evidence**
+- [x] **Step 1: Verify and record unambiguous `tag_object_sha` and `peeled_commit_sha` for `release/v4.0.1.11` in `platforms/*.yaml` and `docs/platforms/bk7259_v4.0.1.11.md`**
+- [x] **Step 2: Record static SDK facts (PL310 32B cache line, 64B `bk_frame_queue` alignment, `bk_dcache_*` APIs, and `beken_robot` 8MB partition table `264K` `ota` limitation) while separating unverified peripheral DMA behaviors**
+- [x] **Step 3: Fix `probe.sh` expected artifact path to `$sdk_dir/build/bk7259/$project_name/package/all-app.bin`**
+- [ ] **Step 4 [BLOCKING]: In an environment with the locked SDK checkout and Armino toolchain (`cm55`/`cm52`), run `probe.sh --build` for both `minimal` and `robot`, recording real `all-app.bin` paths, byte sizes, and AP/CP build logs**
+- [ ] **Step 5 [BLOCKING]: Complete license/redistribution audit for any files referenced from `bk_solution_ai` and update `verification` status in `platforms/bk7259_*.yaml` from `not_run_toolchain_unavailable` to verified evidence**
 
 ---
 
-### Task 1: 实现版本诊断工具 `./tools/bk` 与 Manifest 隔离校验
+### Task 1: 实现版本诊断工具 `./tools/bk` 与 Manifest 隔离校验（仅在 Task 0 闭环后启动）
 
 **Files:**
 - Create: `tools/bk`
@@ -55,11 +48,11 @@
 - Create: `tools/tests/test_doctor.py`
 
 **Interfaces:**
-- `./tools/bk doctor --profile bk7259_minimal` validates SDK checkout SHA and confirms zero dependency on `bk_solution_ai`.
-- `./tools/bk doctor --profile bk7259_robot` validates paired SDK + solution ref/SHA (supporting both tag object SHA and peeled commit SHA).
-- `./tools/bk fetch --profile <profile> --root <path>` clones/checks out the locked repositories.
+- Validates `tag_object_sha` and `peeled_commit_sha` (rejects ambiguous `sha` fields).
+- `./tools/bk doctor --profile bk7259_minimal` validates SDK checkout and confirms zero dependency on `bk_solution_ai`.
+- `./tools/bk doctor --profile bk7259_robot` validates paired SDK + solution ref and `peeled_commit_sha`.
 
-- [ ] **Step 1: Write unit tests for manifest schema, tag/commit SHA verification, and minimal profile isolation**
+- [ ] **Step 1: Write unit tests for manifest schema, `tag_object_sha`/`peeled_commit_sha` verification, and minimal profile isolation**
 - [ ] **Step 2: Implement `tools/bk_manifest.py`, `tools/bk_fetch.py`, and `./tools/bk`**
 - [ ] **Step 3: Run `python3 -m pytest tools/tests/ -v` and verify all tests pass (Tier 1 Gate)**
 - [ ] **Step 4: Commit**
@@ -159,37 +152,17 @@
   1. `bk_button` (debounce + click/double-click/long-press FSM) and `bk_led_effect` (priority queue).
   2. `bk_audio_session`: fixed 20ms PCM frame (`16kHz/16-bit/Mono` = 640B), synchronous copy into downlink ringbuffer with explicit timeout/backpressure (`BK_ERR_AUDIO_RINGBUF_FULL`), hardware AEC capability check.
   3. `bk_audio_mixer`: optional 20ms PCM Ducking/Preempt mixer.
-  4. `bk_video_frame_pool`: 64-byte aligned PSRAM buffers (`BK_FRAME_QUEUE_ALIGN_SIZE = 64U`), atomic `bk_frame_retain`/`bk_frame_release`, explicit `bk_frame_sync_for_device` (`bk_dcache_clean_for_producer`) and `bk_frame_sync_for_cpu` (`bk_dcache_invalidate_for_consumer`), `BK_ERR_BUSY` on `destroy` if `ref_cnt > 0`.
+  4. `bk_video_frame_pool`: 64-byte aligned PSRAM buffers (`BK_FRAME_QUEUE_ALIGN_SIZE = 64U`), atomic `bk_frame_retain`/`bk_frame_release`, explicit `bk_frame_sync_for_device` / `bk_frame_sync_for_cpu` wrappers; verify actual peripheral DMA PSRAM slab requirements on `bk7259_robot` during Tier 2/4 testing before locking ownership rules.
   5. `bk_ui_core`: recursive mutex `bk_ui_lock(timeout_ms)` / `bk_ui_unlock()` around LVGL calls.
 
 - [ ] **Step 1: Write Tier 1 unit tests for button FSM, LED priority preemption, audio ringbuffer backpressure, 20ms mixer saturation math, and multi-threaded frame pool reference counting**
 - [ ] **Step 2: Implement each component with independent Kconfig switches and verify disabled components add zero bytes to `bk7259_minimal`**
-- [ ] **Step 3: Build and verify examples `03`, `04`, `05` on `bk7259_robot`**
+- [ ] **Step 3: Build and verify examples `03`, `04`, `05` on `bk7259_robot`, recording verified peripheral DMA PSRAM behavior**
 - [ ] **Step 4: Commit**
 
 ---
 
-### Task 6: 分区重规划验证与实现 `bk_ota`（前置媒体挂起与 BL2 安全校验集成）
-
-**Files:**
-- Create: `components/bk_ota/include/bk_ota.h`
-- Create: `components/bk_ota/src/bk_ota.c`
-- Create: `components/bk_ota/Kconfig`
-- Create: `components/bk_ota/tests/test_ota_fsm.c`
-
-**Interfaces & Platform Evidence Prerequisites:**
-- **Prerequisite Gate**: Re-budget `bk7259_robot` partition table (resolving the default `264K` `ota` partition limit in `bk_solution_ai/projects/beken_robot/partitions/bk7259/auto_partitions.csv`) and select the verified SDK OTA backend (`CONFIG_SECURE_OTA_OVERWRITE` or `CONFIG_SECURE_OTA_XIP` with EC-P256 BL2 verification).
-- **Pre-OTA Media Quiesce**: `bk_ota_start()` requests `bk_audio_session` and `bk_video_frame_pool` to suspend within `quiesce_timeout_ms`; if media fails to quiesce, abort immediately with `BK_ERR_OTA_MEDIA_BUSY`.
-- **Integrity & Resume**: Verify `"BK723658"` global header and CRC32 / EC-P256 signature; checkpoint verified offset only at coarse intervals (e.g., 256KB boundaries) to avoid Flash wear.
-
-- [ ] **Step 1: Write Tier 1 tests for media quiesce failure abort (`BK_ERR_OTA_MEDIA_BUSY`), corrupted header/signature rejection, security counter anti-rollback check, and interrupted download resume**
-- [ ] **Step 2: Verify partition table layout and BL2 configuration on `bk7259_robot`**
-- [ ] **Step 3: Implement `bk_ota` and run Tier 4 hardware tests (normal upgrade, bad signature rejection, mid-download power loss)**
-- [ ] **Step 4: Commit**
-
----
-
-### Task 7: 实现 `bk_ai_agent`（独立 `protocol_xiaozhi` MCP 主路径）、产品策略组件与 `bk7259_robot` 参考工程
+### Task 6: 实现 `bk_ai_agent`（独立 `protocol_xiaozhi` MCP 主路径）、产品策略组件与 `bk7259_robot` 参考工程
 
 **Files:**
 - Create: `components/bk_ai_agent/transport_websocket/`
@@ -213,5 +186,28 @@
 - [ ] **Step 1: Write wire-format tests for `protocol_xiaozhi` (`hello` handshake, 3×20ms->60ms Opus packetizer, MCP JSON-RPC 2.0 request/response, disconnect recovery) against a local Mock Server**
 - [ ] **Step 2: Implement `transport_websocket`, `protocol_xiaozhi`, `product_components/*`, and optional `plugin_agora`**
 - [ ] **Step 3: Build `products/bk7259_robot` in both open-source Xiaozhi mode (no Agora) and Agora plugin mode**
-- [ ] **Step 4: Execute all Tier 1 ~ Tier 4 gates and record complete evidence in `docs/release-checklist.md`**
-- [ ] **Step 5: Tag `v0.1.0`**
+- [ ] **Step 4: Execute Tier 1 ~ Tier 4 gates and record complete evidence in `docs/release-checklist.md`**
+- [ ] **Step 5: Commit**
+
+---
+
+### Task 7（专项门禁解封后执行）：完成 Robot OTA 分区重算并交付暂缓目标组件 `bk_ota`
+
+> **Deferred Gate**: `bk_ota` is excluded from default component delivery until all 5 prerequisite artifacts in Step 1 are committed and verified.
+
+**Files:**
+- Create: `boards/bk7259_robot/partitions/auto_partitions_ota.csv`
+- Create: `components/bk_ota/include/bk_ota.h`
+- Create: `components/bk_ota/src/bk_ota.c`
+- Create: `components/bk_ota/Kconfig`
+- Create: `components/bk_ota/tests/test_ota_fsm.c`
+
+- [ ] **Step 1 [PREREQUISITE GATE]: Commit the 5 required OTA evidence artifacts for `bk7259_robot`**:
+  1. Concrete re-budgeted partition CSV (replacing the `264K` `ota` limit);
+  2. Measured AP and CP binary sizes;
+  3. Measured compressed `ota.bin` package size;
+  4. Verified BL2 security configuration;
+  5. Explicit single-strategy selection (`CONFIG_SECURE_OTA_OVERWRITE` vs `CONFIG_SECURE_OTA_XIP`).
+- [ ] **Step 2: Write Tier 1 tests for media quiesce failure abort (`BK_ERR_OTA_MEDIA_BUSY`), corrupted header/signature rejection, security counter anti-rollback check, and interrupted download resume**
+- [ ] **Step 3: Implement `bk_ota` and run Tier 4 hardware tests on `bk7259_robot` (normal upgrade, bad signature rejection, mid-download power loss)**
+- [ ] **Step 4: Promote `bk_ota` from `deferred_target_components` to `components` in `platforms/bk7259_robot.yaml` and commit**
