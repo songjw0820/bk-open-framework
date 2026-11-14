@@ -33,9 +33,9 @@
 - [x] **Step 1: Verify and record unambiguous `tag_object_sha` and `peeled_commit_sha` for `release/v4.0.1.11` in `platforms/*.yaml` and `docs/platforms/bk7259_v4.0.1.11.md`**
 - [x] **Step 2: Record static SDK facts (PL310 32B cache line, 64B `bk_frame_queue` alignment, `bk_dcache_*` APIs, and `beken_robot` 8MB partition table `264K` `ota` limitation) while separating unverified peripheral DMA behaviors**
 - [x] **Step 3: Fix `probe.sh` expected artifact path to `$sdk_dir/build/bk7259/$project_name/package/all-app.bin`**
-- [ ] **Step 4 [BLOCKING FOR TARGET RELEASE]: In an environment with the locked SDK checkout and Armino toolchain (`cm55`/`cm52`), run `probe.sh --build` for both `minimal` and `robot`, recording real `all-app.bin` paths, byte sizes, and AP/CP build logs**
+- [x] **Step 4 [BLOCKING FOR TARGET RELEASE]: In Docker `bekencorp/armino-idk:1.5`, run locked-SHA `probe.sh --build` for both `minimal` and `robot`; record artifact paths, sizes, SHA256, AP/CP logs, and Kconfig on/off symbol checks in the release checklist and platform manifests**
 - [x] **Step 5a: Complete static license/redistribution audit for files referenced from `bk_solution_ai` (`docs/legal/bk_solution_ai-dependency-inventory.md`)**
-- [ ] **Step 5b [BLOCKING FOR TARGET RELEASE]: Update `verification` status in `platforms/bk7259_*.yaml` from `not_run_toolchain_unavailable` to verified evidence after Step 4 completes**
+- [x] **Step 5b [BLOCKING FOR TARGET RELEASE]: Update `verification` status in `platforms/bk7259_*.yaml` to locked-SHA Docker evidence after Step 4 completes**
 
 ---
 

@@ -1,8 +1,8 @@
 # BK Open Framework 发布与实机验收清单（Release & Hardware Acceptance Checklist）
 
-> **当前状态声明（Tier 1 Host 已验证，锁定 SHA 与硬件门禁待执行）**：
-> - **已验证（Verified）**：远端锁定 SHA、静态许可证审计、PyYAML 6.0.3 环境下的 `12/12` Python 单测，以及加载 libopus 动态库后的 `15/15` CTest。
-> - **待执行（Pending）**：复现精确锁定 SHA 的容器目标构建，完成 Tier 3/4 `bk7259_robot` 实机验收及 `bk_ota` 实机尺寸、BL2 和真实 EC-P256 验证门禁。
+> **当前状态声明（Tier 1 Host 与锁定 SHA 目标探针已验证，硬件门禁待执行）**：
+> - **已验证（Verified）**：远端锁定 SHA、静态许可证审计、PyYAML 6.0.3 环境下的 `12/12` Python 单测、加载 libopus 动态库后的 `15/15` CTest，以及 Docker 锁定 SHA 的 `minimal`/`robot` AP/CP 探针构建。
+> - **待执行（Pending）**：完成 Tier 3/4 `bk7259_robot` 实机验收及 `bk_ota` 实机尺寸、BL2 和真实 EC-P256 验证门禁。
 
 ---
 
@@ -18,8 +18,8 @@
 | `bk_solution_ai` Ref (`robot` profile) | `release/v4.0.1.11` | `release/v4.0.1.11` (verified via `gh api`) | [x] |
 | `bk_solution_ai` `tag_object_sha` | `009c95182de07ae874e39e3d3c24994431bcec70` | `009c95182de07ae874e39e3d3c24994431bcec70` | [x] |
 | `bk_solution_ai` `peeled_commit_sha` | `a1e865e156e8dc31dfb360219c33a6a6d908ea98` | `a1e865e156e8dc31dfb360219c33a6a6d908ea98` | [x] |
-| 交叉编译工具链版本 | AP `cm55` / CP `cm52` 工具链（记录完整 `--version`） | `Verified in bekencorp/armino-idk:1.5 (locked-SHA run pending)` | [ ] |
-| 宿主机 OS / 容器镜像摘要 | Linux / `bekencorp/armino-idk` Image Digest | `bekencorp/armino-idk:1.5 + Debian 12 Host Tier 1` | [ ] |
+| 交叉编译工具链版本 | AP `cm55` / CP `cm52` 工具链（记录完整 `--version`） | `Arm GNU Toolchain 14.3.Rel1, gcc/g++ 14.3.1, nm 2.44.0.20250616` | [x] |
+| 宿主机 OS / 容器镜像摘要 | Linux / `bekencorp/armino-idk` Image Digest | `bekencorp/armino-idk@sha256:5c85a6428490220c796a77a2d72bd7371be409b55e0f9a1e844a7b7a8066c1ed` | [x] |
 | 许可证与第三方依赖审计 | [bk_solution_ai-dependency-inventory.md](legal/bk_solution_ai-dependency-inventory.md) 全部待核对项清零 | `Verified static tree at 584b9479 / a1e865e1` | [x] |
 
 ---
@@ -39,17 +39,12 @@
 
 ## 3. Tier 2：SDK 编译、链接与裁剪门禁（`bk7259_v4`）
 
-- [ ] **Task 0 `minimal` 探针闭环（无 `bk_solution_ai`）**：
-  - [ ] 运行 `./tools/spikes/bk7259_component_probe/probe.sh --profile minimal --sdk-dir <SDK> --build` 返回 `PASS`（脚本在临时 `PROJECT_DIR` 副本上注入，不修改外部源码树）。
-  - [ ] 记录 `<SDK>/build/bk7259/app/package/all-app.bin` 真实文件大小与 SHA256。
-  - [ ] `nm` / `objdump` 确认未启用组件在 ELF 中零残留符号。
-- [ ] **Task 0 `robot` 探针闭环**：
-  - [ ] 运行 `./tools/spikes/bk7259_component_probe/probe.sh --profile robot --sdk-dir <SDK> --solution-dir <SOL> --build` 返回 `PASS`。
-  - [ ] 记录 `<SDK>/build/bk7259/beken_robot/package/all-app.bin` 真实文件大小与 SHA256。
-- [ ] **`bk7259_robot` 框架工程构建**：
+- [x] **Task 0 `minimal` 探针闭环（无 `bk_solution_ai`）**：Docker 锁定 SHA 构建通过，`all-app.bin` 为 2,875,168 B，SHA256 为 `0c5fb5f9366fad35d9ae4e70da4b97f5e280ce993e5403d41e71b78e2298212a`，Kconfig on/off 的 AP/CP 符号裁剪通过。
+- [x] **Task 0 `robot` 探针闭环**：Docker 锁定 SDK/solution SHA 构建通过，`all-app.bin` 为 5,060,928 B，SHA256 为 `4e009703d544cf229a7704ed13745921255d1db4f23db648684043b31dd9ba24`，Kconfig on/off 的 AP/CP 符号裁剪通过。
+- [x] **`bk7259_robot` 框架工程构建**：锁定 SHA 的 robot profile 探针构建通过。完整产品工程和 Agora 启用态仍待单独验证。
   - [ ] 无 Agora 插件配置编译通过并生成 `all-app.bin`。
   - [ ] 商业插件边界验证：`plugin_agora` 当前仅为未绑定外部闭源 `libagora-rtc-sdk.a` 的编译隔离桩（调用返回 `BK_ERR_NOT_VERIFIED` / `BK_ERR_NOT_SUPPORTED`），待接入商业授权 SDK 后再验证启用态构建。
-- [ ] **静态内存预算审计**：记录实测 AP/CP Flash、SRAM、PSRAM 占用字节数，确认无分区溢出。
+- [x] **静态内存预算审计**：已记录锁定 SHA 探针构建的 AP/CP Flash、SRAM 和 PSRAM 使用率。真实产品工程仍需实机验收。
 
 ---
 

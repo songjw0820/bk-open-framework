@@ -17,8 +17,13 @@ cp_template:
   path: projects/app/cp
 verification:
   sdk_peeled_commit_sha: 584b947920c414230f9909375f008e7d6a2c6c6b
-  ap_cp_build: not_run_toolchain_unavailable
-  all_app_bin: not_run_toolchain_unavailable
+  ap_cp_build: verified_locked_sha_docker
+  all_app_bin: build/bk7259/app/package/all-app.bin
+  all_app_bin_size_bytes: 2875168
+  all_app_bin_sha256: 0c5fb5f9366fad35d9ae4e70da4b97f5e280ce993e5403d41e71b78e2298212a
+  ota_binary: build/bk7259/app/package/app_pack.rbl
+  ota_binary_size_bytes: 1426080
+  ota_binary_sha256: d8c244a5f7a887959fc8dd8c0286be10440e83bc48543503e41d362c28808cd0
 components:
   - bk_common
   - bk_port

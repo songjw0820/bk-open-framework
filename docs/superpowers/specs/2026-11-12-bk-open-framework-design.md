@@ -88,7 +88,7 @@ Armino/BK AVDK SDK（外置锁定）
 ## 6. 四级验证门禁（4-Tier Verification Gate）
 
 1. **Tier 1（Host 行为门禁 - `posix_sim`）**：使用 PyYAML 6.0.3 和 libopus 动态库完成 `15/15` CTest 与 `12/12` Python 单测。验证记录必须包含依赖来源。
-2. **Tier 2（SDK 编译与裁剪门禁 - `bk7259_v4`）**：锁定 SHA 的 AP/CP ELF 与 `all-app.bin` 仍待复现并保存产物摘要。
+2. **Tier 2（SDK 编译与裁剪门禁 - `bk7259_v4`）**：已在锁定 SDK/solution SHA 的 Docker 构建中通过 AP/CP ELF、Kconfig on/off 符号裁剪和 `all-app.bin` 打包，并保存产物摘要。实机门禁仍待执行。
 3. **Tier 3（故障注入与压力门禁）**：验证弱网断线重连、SNTP 失败/过期证书拒绝、满缓冲背压。
 4. **Tier 4（真实板卡验收门禁 - `bk7259_robot`）**：按 [docs/release-checklist.md](../../release-checklist.md) 逐项在实机硬件上完成验收并填入真实日志与数据。
 

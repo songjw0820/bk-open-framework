@@ -18,8 +18,13 @@ cp_template:
 verification:
   sdk_peeled_commit_sha: 584b947920c414230f9909375f008e7d6a2c6c6b
   solution_peeled_commit_sha: a1e865e156e8dc31dfb360219c33a6a6d908ea98
-  ap_cp_build: not_run_toolchain_unavailable
-  all_app_bin: not_run_toolchain_unavailable
+  ap_cp_build: verified_locked_sha_docker
+  all_app_bin: build/bk7259/beken_robot/package/all-app.bin
+  all_app_bin_size_bytes: 5060928
+  all_app_bin_sha256: 4e009703d544cf229a7704ed13745921255d1db4f23db648684043b31dd9ba24
+  ota_binary: build/bk7259/beken_robot/package/app_pack.rbl
+  ota_binary_size_bytes: 2963312
+  ota_binary_sha256: 9abf7cec433c6c007c2cf6eb022858d647f02374ddddb3e4eb505c370767d704
 components:
   - bk_common
   - bk_port
