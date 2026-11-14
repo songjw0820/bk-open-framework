@@ -64,7 +64,7 @@ ctest --test-dir build --output-on-failure
 
 ## Docker 目标构建
 
-仓库提供 [`dbuild.sh`](dbuild.sh) 一键 Docker 构建封装脚本（默认读取 `.bk-deps/bk_avdk_smp` 与 `.bk-deps/bk_solution_ai`，也可通过 `--sdk-dir` / `--solution-dir` 指定路径），内部自动校验 `bekencorp/armino-idk`（>= `1.5`）并调用 [`probe.sh`](tools/spikes/bk7259_component_probe/probe.sh)：
+仓库提供 [`dbuild.sh`](dbuild.sh) 一键 Docker 构建封装脚本（默认读取 `external/bk_avdk_smp` 与 `external/bk_solution_ai`，也可通过 `--sdk-dir` / `--solution-dir` 指定路径），内部自动校验 `bekencorp/armino-idk`（>= `1.5`）并调用 [`probe.sh`](tools/spikes/bk7259_component_probe/probe.sh)：
 
 ```bash
 # 最小 Profile（仅依赖 bk_avdk_smp）
