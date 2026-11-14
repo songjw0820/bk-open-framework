@@ -12,6 +12,7 @@ if(COMMAND armino_component_register)
             "transport_websocket/include"
             "protocol_xiaozhi/include"
         REQUIRES bk_common bk_port bk_net bk_audio_session
+        PRIV_REQUIRES bk_libs psa_mbedtls lwip_intf_v2_1 opus
     )
 else()
     add_library(bk_ai_agent STATIC

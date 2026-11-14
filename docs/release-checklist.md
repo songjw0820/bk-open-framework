@@ -1,7 +1,7 @@
 # BK Open Framework 发布与实机验收清单（Release & Hardware Acceptance Checklist）
 
 > **当前状态声明（Tier 1 Host Verified · Tier 2/3/4 Target & Hardware Pending）**：
-> - **已验证（Verified on Host）**：远端锁定 SHA、静态许可证审计（[bk_solution_ai-dependency-inventory.md](legal/bk_solution_ai-dependency-inventory.md)）、`./tools/bk` Manifest/Doctor 单测（12/12 PASS）及 **Tier 1 `posix_sim` CTest 全量套件（12/12 PASS，开启 `-Wall -Wextra -Werror -fsanitize=address,undefined` 零内存泄漏）**。
+> - **已验证（Verified on Host）**：远端锁定 SHA、静态许可证审计（[bk_solution_ai-dependency-inventory.md](legal/bk_solution_ai-dependency-inventory.md)）、`./tools/bk` Manifest/Doctor 单测（12/12 PASS）及 **Tier 1 `posix_sim` + `BK7259` 目标适配层 CTest 全量套件（13/13 PASS，开启 `-Wall -Wextra -Werror -fsanitize=address,undefined` 零内存泄漏）**。
 > - **未验证（NOT VERIFIED — Pending Armino Toolchain & Hardware）**：Tier 2 板端交叉编译与 `all-app.bin` 产物（`not_run_toolchain_unavailable`）、Tier 3/4 `bk7259_robot` 实机验收及 `bk_ota` 暂缓门禁。
 
 ---
@@ -32,7 +32,7 @@
 - [x] **网络状态机 (`bk_net`)**：连接、断线指数退避重连、5-AP MRU 凭证管理、SNTP 超时与 TLS 错误码传播测试通过（`ctest -R test_net_fsm` + `example_01_wifi_provision` + `example_02_lan_device`）。
 - [x] **外设状态机 (`bk_button`, `bk_led_effect`)**：消抖、单击/双击/长按、灯效优先级抢占与恢复测试通过（`ctest -R test_peripherals_and_media` + `example_05_peripheral_control`）。
 - [x] **媒体缓冲与混音算术 (`bk_audio_mixer`, `bk_video_frame_pool`)**：20ms PCM 帧混音/Ducking 防溢出、64B 对齐 PSRAM 原子引用计数、Cache Clean/Invalidate 统计与 LVGL 递归锁测试通过（`ctest -R test_peripherals_and_media` + `example_03_audio_player` + `example_04_camera_stream`）。
-- [x] **小智协议与本地回环 WebSocket (`protocol_xiaozhi`, `transport_websocket`)**：RFC 6455 本地回环 TCP 握手（`Sec-WebSocket-Accept` 校验、小智 `Authorization`/`Protocol-Version`/`Device-Id`/`Client-Id` 头部、Masking、Ping/Pong、Close 断线回调）、原生 `libopus` 3×20ms <-> 60ms 真实 Opus 编解码、严格按 `len` 边界与 `payload` 作用域解析的 MCP (`jsonrpc: "2.0"`，支持整型与字符串 `id`) 及默认拒绝旧版 `iot` 消息测试通过（`ctest -R test_protocol_xiaozhi` + `example_06_robot_reference`；远端 `wss://` 与实机语音交互仍属 Tier 4 待验项）。
+- [x] **小智协议、RFC 6455 帧合法性/分片重组与 BK7259 目标适配层 (`protocol_xiaozhi`, `transport_websocket`, `test_bk7259_target_adapter`)**：RFC 6455 本地回环 TCP 握手（非阻塞 `connect_timeout_ms`、CSPRNG Nonce/Masking、`Sec-WebSocket-Accept` 校验、小智 `Authorization`/`Protocol-Version`/`Device-Id`/`Client-Id` 头部、RSV/MASK/Opcode/控制帧合法性校验、多帧分片与交织 Ping/Pong 重组、Close 断线回调）、原生 `libopus` 3×20ms <-> 60ms 真实 Opus 编解码、严格按 `len` 边界与 `payload` 作用域解析的 MCP (`jsonrpc: "2.0"`)，以及 `BK_OF_BUILDING_TARGET_BK7259` 下 `bk_port_bk7259.c` + mbedTLS CA/SNI `wss://` + `<modules/opus.h>` 编译与契约测试通过（`ctest -R "test_protocol_xiaozhi|example_06_robot_reference|test_bk7259_target_adapter"`；真实交叉编译产物 `all-app.bin` 与远端实机 `wss://` 联调仍属 Tier 2/4 待验项）。
 
 ---
 

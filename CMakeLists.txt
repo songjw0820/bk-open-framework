@@ -86,3 +86,30 @@ target_link_libraries(example_06_robot_reference PRIVATE
     bk_ui_core bk_audio_session bk_net bk_storage bk_core_event bk_board bk_port bk_common
 )
 add_test(NAME example_06_robot_reference COMMAND example_06_robot_reference)
+
+# Compile & verify the BK7259 target code paths (bk_port_bk7259.c + mbedTLS wss:// + <modules/opus.h>)
+add_executable(test_bk7259_target_adapter
+    tests/test_bk7259_target_adapter.c
+    components/bk_port/bk7259_v4/bk_port_bk7259.c
+    components/bk_ai_agent/transport_websocket/src/bk_ws_transport.c
+    components/bk_ai_agent/protocol_xiaozhi/src/bk_protocol_xiaozhi.c
+    components/bk_audio_session/src/bk_audio_session.c
+    components/bk_board/src/bk_board.c
+    components/bk_net/src/bk_net.c
+    components/bk_storage/src/bk_storage.c
+    components/bk_core_event/src/bk_core_event.c
+)
+target_compile_definitions(test_bk7259_target_adapter PRIVATE BK_OF_BUILDING_TARGET_BK7259=1)
+target_include_directories(test_bk7259_target_adapter PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/armino_sdk_stub/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_port/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_ai_agent/transport_websocket/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_ai_agent/protocol_xiaozhi/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_audio_session/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_board/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_net/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_storage/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_core_event/include"
+)
+target_link_libraries(test_bk7259_target_adapter PRIVATE bk_common pthread)
+add_test(NAME test_bk7259_target_adapter COMMAND test_bk7259_target_adapter)

@@ -13,11 +13,12 @@ extern "C" {
 #endif
 
 typedef enum {
-    BK_WS_FRAME_TEXT   = 0x1,
-    BK_WS_FRAME_BINARY = 0x2,
-    BK_WS_FRAME_CLOSE  = 0x8,
-    BK_WS_FRAME_PING   = 0x9,
-    BK_WS_FRAME_PONG   = 0xA,
+    BK_WS_FRAME_CONTINUATION = 0x0,
+    BK_WS_FRAME_TEXT         = 0x1,
+    BK_WS_FRAME_BINARY       = 0x2,
+    BK_WS_FRAME_CLOSE        = 0x8,
+    BK_WS_FRAME_PING         = 0x9,
+    BK_WS_FRAME_PONG         = 0xA,
 } bk_ws_frame_type_t;
 
 typedef enum {
@@ -39,9 +40,13 @@ typedef void (*bk_ws_disconnect_cb_t)(bk_ws_transport_handle_t ws,
                                       void *user_ctx);
 
 /*
- * Optional custom byte-stream I/O backend (e.g., mbedTLS / OpenSSL / custom transport).
- * When NULL, bk_ws_transport uses POSIX TCP sockets for ws:// (when allow_plain_ws == true)
- * and fails closed with BK_ERR_NOT_SUPPORTED for wss:// unless a TLS io_ops backend is supplied.
+ * Optional custom byte-stream I/O backend (e.g., custom TLS wrapper or test harness).
+ * When NULL:
+ * - On BK7259 target (BK_OF_BUILDING_TARGET_BK7259), bk_ws_transport uses native
+ *   Armino mbedTLS + lwIP sockets for wss:// (verifying CA certificate chain and SNI)
+ *   and lwIP sockets for ws:// (when allow_plain_ws == true).
+ * - On POSIX host (posix_sim), bk_ws_transport uses non-blocking POSIX TCP sockets
+ *   for ws:// (when allow_plain_ws == true) and requires io_ops for wss://.
  */
 typedef struct {
     bk_err_t (*connect)(const char *host, uint16_t port, uint32_t timeout_ms, void *io_ctx);
@@ -56,6 +61,9 @@ typedef struct {
     bk_net_handle_t net;
     bool verify_cert_chain;
     bool verify_sni;
+    const uint8_t *ca_cert_pem;  /* Root CA PEM buffer (including trailing NUL for mbedTLS) */
+    size_t ca_cert_len;          /* Length of ca_cert_pem in bytes */
+    const char *sni_hostname;    /* Optional SNI override; defaults to URI host when NULL */
     bool allow_plain_ws;         /* Must be true to permit ws:// (e.g., localhost loopback test) */
 
     /* Xiaozhi WebSocket handshake headers */
@@ -67,7 +75,7 @@ typedef struct {
 
     uint32_t connect_timeout_ms; /* Default 5000ms if 0 */
 
-    /* Optional custom stream I/O ops (for TLS or deterministic byte-stream test) */
+    /* Optional custom stream I/O ops */
     const bk_ws_io_ops_t *io_ops;
 
     /* Frame receive & disconnect callbacks */
@@ -107,10 +115,13 @@ bk_err_t bk_ws_transport_send_pong(bk_ws_transport_handle_t ws,
 
 /*
  * Polls and processes one incoming RFC 6455 WebSocket frame from the underlying
- * socket/io_ops:
+ * socket/TLS/io_ops:
+ * - Enforces RFC 6455 RSV1/2/3 == 0, server MASK == 0, opcode legality,
+ *   control frame rules (FIN == 1, len <= 125, CLOSE len != 1), and
+ *   multi-frame fragmentation reassembly (FIN == 0 + CONTINUATION 0x0 frames)
  * - Automatically replies with a masked PONG frame when a PING (0x9) is received
- * - Transitions to DISCONNECTED and fires disconnect_cb when CLOSE (0x8) or EOF arrives
- * - Dispatches TEXT (0x1) and BINARY (0x2) frames to rx_cb
+ * - Transitions to DISCONNECTED and fires disconnect_cb when CLOSE (0x8) or protocol error arrives
+ * - Dispatches complete TEXT (0x1) and BINARY (0x2) messages to rx_cb
  */
 bk_err_t bk_ws_transport_poll(bk_ws_transport_handle_t ws, uint32_t timeout_ms);
 

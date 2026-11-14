@@ -1,10 +1,14 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE 1
+#endif
 #define _POSIX_C_SOURCE 200809L
 
 #include "bk_audio_session.h"
 #include "bk_board.h"
 #include "bk_net.h"
 #include "bk_port_mem.h"
+#include "bk_port_os.h"
 #include "bk_protocol_xiaozhi.h"
 #include "bk_ws_transport.h"
 
@@ -54,11 +58,16 @@ static int write_exact_fd(int fd, const uint8_t *buf, size_t len)
     return 0;
 }
 
-static int server_send_unmasked_frame(int fd, uint8_t opcode, const uint8_t *payload, size_t len)
+static int server_send_raw_frame(int fd,
+                                 bool fin,
+                                 uint8_t rsv,
+                                 uint8_t opcode,
+                                 const uint8_t *payload,
+                                 size_t len)
 {
     uint8_t hdr[4];
     size_t hdr_len = 0U;
-    hdr[hdr_len++] = (uint8_t)(0x80U | (opcode & 0x0FU));
+    hdr[hdr_len++] = (uint8_t)((fin ? 0x80U : 0x00U) | ((rsv & 0x07U) << 4) | (opcode & 0x0FU));
     if (len <= 125U) {
         hdr[hdr_len++] = (uint8_t)len;
     } else {
@@ -75,6 +84,11 @@ static int server_send_unmasked_frame(int fd, uint8_t opcode, const uint8_t *pay
         }
     }
     return 0;
+}
+
+static int server_send_unmasked_frame(int fd, uint8_t opcode, const uint8_t *payload, size_t len)
+{
+    return server_send_raw_frame(fd, true, 0U, opcode, payload, len);
 }
 
 static int server_read_masked_frame(int fd,
@@ -194,13 +208,26 @@ static void *loopback_ws_server_thread(void *arg)
     assert(server_send_unmasked_frame(
                cfd, BK_WS_FRAME_TEXT, (const uint8_t *)srv_hello, strlen(srv_hello)) == 0);
 
-    /* 4. Send server PING and verify client auto-replies with masked PONG */
+    /* 4. Send a 3-part fragmented MCP JSON-RPC 2.0 request with an interleaved PING in the middle */
+    const char *frag1 = "{\"session_id\":\"xz-sess-7259\",\"type\":\"mcp\",";
+    const char *frag2 = "\"payload\":{\"jsonrpc\":\"2.0\",\"id\":77,";
+    const char *frag3 = "\"method\":\"tools/call\",\"params\":{\"frag\":true}}}";
     const uint8_t ping_payload[4] = {'p', 'i', 'n', 'g'};
+
+    assert(server_send_raw_frame(cfd, false, 0U, BK_WS_FRAME_TEXT, (const uint8_t *)frag1, strlen(frag1)) == 0);
     assert(server_send_unmasked_frame(cfd, BK_WS_FRAME_PING, ping_payload, sizeof(ping_payload)) == 0);
+    assert(server_send_raw_frame(cfd, false, 0U, BK_WS_FRAME_CONTINUATION, (const uint8_t *)frag2, strlen(frag2)) == 0);
+    assert(server_send_raw_frame(cfd, true, 0U, BK_WS_FRAME_CONTINUATION, (const uint8_t *)frag3, strlen(frag3)) == 0);
+
+    /* Read client PONG reply to interleaved PING */
     assert(server_read_masked_frame(cfd, &opcode, buf, sizeof(buf), &flen) == 0);
     if (opcode == BK_WS_FRAME_PONG && flen == 4U && memcmp(buf, "ping", 4U) == 0) {
         srv->client_pong_verified = true;
     }
+    /* Read client MCP response to reassembled fragmented request */
+    assert(server_read_masked_frame(cfd, &opcode, buf, sizeof(buf), &flen) == 0);
+    assert(opcode == BK_WS_FRAME_TEXT);
+    assert(strstr((const char *)buf, "\"id\":77") != NULL);
 
     /* 5. Receive client 60ms Opus binary frame and echo it back to client */
     assert(server_read_masked_frame(cfd, &opcode, buf, sizeof(buf), &flen) == 0);
@@ -306,11 +333,128 @@ static bk_err_t on_tx_tap(bk_ws_frame_type_t type,
     return BK_OK;
 }
 
+/* Mock byte-stream I/O to test RFC 6455 illegal frame rejection deterministically */
+typedef struct {
+    uint8_t rx_buf[512];
+    size_t rx_len;
+    size_t rx_pos;
+} mock_illegal_io_t;
+
+static bk_err_t mock_io_connect(const char *host, uint16_t port, uint32_t timeout_ms, void *io_ctx)
+{
+    (void)host;
+    (void)port;
+    (void)timeout_ms;
+    (void)io_ctx;
+    return BK_OK;
+}
+
+static int mock_io_send(const uint8_t *buf, size_t len, void *io_ctx)
+{
+    mock_illegal_io_t *io = (mock_illegal_io_t *)io_ctx;
+    const char *s = (const char *)buf;
+    if (len > 20U && strncmp(s, "GET ", 4) == 0) {
+        const char *k = strstr(s, "Sec-WebSocket-Key: ");
+        assert(k != NULL);
+        k += strlen("Sec-WebSocket-Key: ");
+        const char *ke = strstr(k, "\r\n");
+        assert(ke != NULL);
+        char sec_key[64] = {0};
+        memcpy(sec_key, k, (size_t)(ke - k));
+        char accept_key[64] = {0};
+        assert(bk_ws_compute_accept_key(sec_key, accept_key, sizeof(accept_key)) == BK_OK);
+        int n = snprintf((char *)io->rx_buf,
+                         sizeof(io->rx_buf),
+                         "HTTP/1.1 101 Switching Protocols\r\n"
+                         "Upgrade: websocket\r\n"
+                         "Connection: Upgrade\r\n"
+                         "Sec-WebSocket-Accept: %s\r\n\r\n",
+                         accept_key);
+        io->rx_len = (size_t)n;
+        io->rx_pos = 0U;
+    }
+    return (int)len;
+}
+
+static int mock_io_recv(uint8_t *buf, size_t len, uint32_t timeout_ms, void *io_ctx)
+{
+    (void)timeout_ms;
+    mock_illegal_io_t *io = (mock_illegal_io_t *)io_ctx;
+    if (io->rx_pos >= io->rx_len) {
+        return -2;
+    }
+    size_t rem = io->rx_len - io->rx_pos;
+    size_t n = (len < rem) ? len : rem;
+    memcpy(buf, io->rx_buf + io->rx_pos, n);
+    io->rx_pos += n;
+    return (int)n;
+}
+
+static void test_rfc6455_illegal_frame_rejections(void)
+{
+    /* Cases:
+     * 1. Non-zero RSV1 bit (0xC1, 0x00)
+     * 2. Server frame with MASK=1 bit set (0x81, 0x80)
+     * 3. Fragmented PING control frame (FIN=0, 0x09, 0x00)
+     * 4. Control frame with payload_len == 126 (0x89, 126)
+     * 5. Unexpected CONTINUATION frame with no open fragment (0x80, 0x00)
+     * 6. Reserved opcode 0x3 (0x83, 0x00)
+     */
+    const uint8_t bad_frames[][2] = {
+        {0xC1U, 0x00U},
+        {0x81U, 0x80U},
+        {0x09U, 0x00U},
+        {0x89U, 126U},
+        {0x80U, 0x00U},
+        {0x83U, 0x00U},
+    };
+
+    for (size_t i = 0U; i < sizeof(bad_frames) / sizeof(bad_frames[0]); ++i) {
+        mock_illegal_io_t mio;
+        memset(&mio, 0, sizeof(mio));
+        bk_ws_io_ops_t io_ops = {
+            .connect = mock_io_connect,
+            .send = mock_io_send,
+            .recv = mock_io_recv,
+            .close = NULL,
+            .io_ctx = &mio,
+        };
+        int reason = 0;
+        bk_ws_transport_config_t cfg = {
+            .uri = "wss://api.tenclass.net/xiaozhi/v1/",
+            .verify_cert_chain = true,
+            .verify_sni = true,
+            .io_ops = &io_ops,
+            .disconnect_cb = on_client_ws_disconnect,
+            .disconnect_cb_ctx = &reason,
+        };
+        bk_ws_transport_handle_t ws = NULL;
+        assert(bk_ws_transport_create(&cfg, &ws) == BK_OK);
+        assert(bk_ws_transport_connect(ws) == BK_OK);
+
+        memcpy(mio.rx_buf, bad_frames[i], 2U);
+        mio.rx_len = 2U;
+        mio.rx_pos = 0U;
+
+        assert(bk_ws_transport_poll(ws, 100U) == BK_ERR_CORRUPTED);
+        assert(!bk_ws_transport_is_connected(ws));
+        assert(reason == 1002);
+        bk_ws_transport_destroy(ws);
+    }
+}
+
 static void test_real_socket_ws_handshake_libopus_and_mcp(void)
 {
     assert(bk_board_init(BK_BOARD_PROFILE_ROBOT) == BK_OK);
 
-    /* 0. Verify wss:// without TLS io_ops fails closed (never fakes connected=true) */
+    /* Verify CSPRNG produces non-identical 16-byte nonces */
+    uint8_t r1[16] = {0};
+    uint8_t r2[16] = {0};
+    assert(bk_port_get_random(r1, sizeof(r1)) == BK_OK);
+    assert(bk_port_get_random(r2, sizeof(r2)) == BK_OK);
+    assert(memcmp(r1, r2, sizeof(r1)) != 0);
+
+    /* 0. Verify wss:// without TLS io_ops on host fails closed (never fakes connected=true) */
     bk_ws_transport_config_t bad_wss_cfg = {
         .uri = "wss://api.tenclass.net/xiaozhi/v1/",
         .verify_cert_chain = true,
@@ -333,7 +477,7 @@ static void test_real_socket_ws_handshake_libopus_and_mcp(void)
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    assert(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
     addr.sin_port = 0;
     assert(bind(srv.listen_fd, (struct sockaddr *)&addr, sizeof(addr)) == 0);
     assert(listen(srv.listen_fd, 1) == 0);
@@ -406,9 +550,22 @@ static void test_real_socket_ws_handshake_libopus_and_mcp(void)
     assert(strcmp(bk_xiaozhi_get_session_id(xz), "xz-sess-7259") == 0);
     assert(bk_xiaozhi_get_negotiated_frame_ms(xz) == 60U);
 
-    /* 4. Poll server PING -> client automatically replies with masked PONG */
+    /*
+     * 4. Poll 3-part fragmented MCP message + interleaved PING:
+     *    - Poll 1: FIN=0 TEXT fragment 1 (buffered, not yet dispatched)
+     *    - Poll 2: FIN=1 PING control frame (immediately auto-replies PONG)
+     *    - Poll 3: FIN=0 CONTINUATION fragment 2 (buffered)
+     *    - Poll 4: FIN=1 CONTINUATION fragment 3 (reassembled & dispatched to mcp_cb!)
+     */
+    assert(bk_ws_transport_poll(ws, 2000U) == BK_OK);
+    assert(mcp_ctx.invocations == 0);
     assert(bk_ws_transport_poll(ws, 2000U) == BK_OK);
     assert(rx_ctx.ping_rx_count == 1U);
+    assert(bk_ws_transport_poll(ws, 2000U) == BK_OK);
+    assert(mcp_ctx.invocations == 0);
+    assert(bk_ws_transport_poll(ws, 2000U) == BK_OK);
+    assert(mcp_ctx.invocations == 1);
+    assert(strcmp(mcp_ctx.last_params, "{\"frag\":true}") == 0);
 
     /* 5. Encode 3 x 20ms (960 samples = 60ms) synthetic speech wave with real libopus */
     int16_t f0[BK_AUDIO_PCM_20MS_SAMPLES];
@@ -450,7 +607,7 @@ static void test_real_socket_ws_handshake_libopus_and_mcp(void)
         "TRAILING_GARBAGE_NOT_PART_OF_FRAME";
     size_t valid_json_len = strlen(raw_unterminated) - strlen("TRAILING_GARBAGE_NOT_PART_OF_FRAME");
     assert(bk_xiaozhi_on_text_frame(xz, raw_unterminated, valid_json_len) == BK_OK);
-    assert(mcp_ctx.invocations == 1);
+    assert(mcp_ctx.invocations == 2);
     assert(strcmp(mcp_ctx.last_method, "tools/call") == 0);
     /* Verify params_json is ONLY the payload.params object slice, NOT the whole message */
     assert(strcmp(mcp_ctx.last_params,
@@ -462,7 +619,7 @@ static void test_real_socket_ws_handshake_libopus_and_mcp(void)
         "{\"session_id\":\"xz-sess-7259\",\"type\":\"mcp\",\"payload\":"
         "{\"jsonrpc\":\"2.0\",\"id\":\"req-str-7\",\"method\":\"tools/call\",\"params\":{\"deg\":15}}}";
     assert(bk_xiaozhi_on_text_frame(xz, mcp_str_id, strlen(mcp_str_id)) == BK_OK);
-    assert(mcp_ctx.invocations == 2);
+    assert(mcp_ctx.invocations == 3);
     assert(strcmp(mcp_ctx.last_params, "{\"deg\":15}") == 0);
     assert(strstr(tap.last_text, "\"id\":\"req-str-7\"") != NULL);
 
@@ -500,6 +657,7 @@ static void test_real_socket_ws_handshake_libopus_and_mcp(void)
 int main(void)
 {
     bk_port_reset_mem_stats();
+    test_rfc6455_illegal_frame_rejections();
     test_real_socket_ws_handshake_libopus_and_mcp();
 
     bk_port_mem_stats_t mstats;
@@ -507,6 +665,6 @@ int main(void)
     assert(mstats.current_allocated_bytes == 0U);
     assert(mstats.active_allocations == 0U);
 
-    printf("PASS: test_protocol_xiaozhi (RFC 6455 socket handshake, Xiaozhi headers, Ping/Pong/Close, native libopus 60ms encode/decode, bounded JSON-RPC 2.0 MCP)\n");
+    printf("PASS: test_protocol_xiaozhi (RFC 6455 validation/fragmentation, Xiaozhi headers, CSPRNG, native libopus 60ms, bounded JSON-RPC 2.0 MCP)\n");
     return 0;
 }

@@ -29,6 +29,7 @@ bk_err_t bk_port_thread_join(bk_port_thread_t thread);
 
 uint64_t bk_port_get_time_ms(void);
 void bk_port_sleep_ms(uint32_t ms);
+bk_err_t bk_port_get_random(void *buf, size_t len);
 
 #ifdef __cplusplus
 }

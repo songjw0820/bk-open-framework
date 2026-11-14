@@ -1,4 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE 1
+#endif
 #define _POSIX_C_SOURCE 200809L
 
 #include "bk_audio_session.h"
@@ -259,7 +262,7 @@ int main(void)
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    assert(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
     addr.sin_port = 0;
     assert(bind(listen_fd, (struct sockaddr *)&addr, sizeof(addr)) == 0);
     assert(listen(listen_fd, 1) == 0);

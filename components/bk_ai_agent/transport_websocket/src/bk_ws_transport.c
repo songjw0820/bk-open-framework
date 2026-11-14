@@ -1,4 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE 1
+#endif
 #define _POSIX_C_SOURCE 200809L
 
 #include "bk_ws_transport.h"
@@ -7,11 +10,21 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#if !defined(BK_OF_BUILDING_TARGET_BK7259)
+#if defined(BK_OF_BUILDING_TARGET_BK7259)
+#include <components/system.h>
+#include <lwip/netdb.h>
+#include <lwip/sockets.h>
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/net_sockets.h>
+#include <mbedtls/ssl.h>
+#include <mbedtls/x509_crt.h>
+#else
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/select.h>
@@ -20,7 +33,7 @@
 #include <unistd.h>
 #endif
 
-#define BK_WS_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+#define BK_WS_GUID               "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 #define BK_WS_MAX_RX_FRAME_BYTES 8192U
 
 struct bk_ws_transport {
@@ -32,7 +45,21 @@ struct bk_ws_transport {
     int sock_fd;
     bk_ws_state_t state;
     uint32_t disconnect_count;
-    uint32_t mask_seed;
+
+    /* RFC 6455 fragmented message reassembly state */
+    uint8_t frag_opcode;
+    uint8_t *frag_buf;
+    size_t frag_len;
+
+#if defined(BK_OF_BUILDING_TARGET_BK7259)
+    bool mbedtls_active;
+    mbedtls_net_context tls_net;
+    mbedtls_ssl_context ssl;
+    mbedtls_ssl_config tls_conf;
+    mbedtls_x509_crt ca_cert;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_entropy_context entropy;
+#endif
 };
 
 /* --- Minimal portable SHA-1 (RFC 3174) & Base64 (RFC 4648) for RFC 6455 --- */
@@ -268,19 +295,238 @@ static bk_err_t parse_ws_uri(const char *uri,
     return BK_OK;
 }
 
-/* --- Low-level stream I/O (POSIX socket or custom io_ops) --- */
+static void reset_frag_buffer(struct bk_ws_transport *ws)
+{
+    if (ws->frag_buf != NULL) {
+        bk_port_free(ws->frag_buf);
+        ws->frag_buf = NULL;
+    }
+    ws->frag_len = 0U;
+    ws->frag_opcode = 0U;
+}
+
+#if defined(BK_OF_BUILDING_TARGET_BK7259)
+static int bk7259_entropy_poll(void *data, unsigned char *output, size_t len, size_t *olen)
+{
+    (void)data;
+    if (bk_port_get_random(output, len) != BK_OK) {
+        return -1;
+    }
+    *olen = len;
+    return 0;
+}
+
+static void close_bk7259_mbedtls(struct bk_ws_transport *ws)
+{
+    if (ws->mbedtls_active) {
+        (void)mbedtls_ssl_close_notify(&ws->ssl);
+        mbedtls_x509_crt_free(&ws->ca_cert);
+        mbedtls_ssl_free(&ws->ssl);
+        mbedtls_ssl_config_free(&ws->tls_conf);
+        mbedtls_ctr_drbg_free(&ws->ctr_drbg);
+        mbedtls_entropy_free(&ws->entropy);
+        ws->mbedtls_active = false;
+    }
+}
+
+static bk_err_t setup_bk7259_mbedtls(struct bk_ws_transport *ws)
+{
+    if (ws->cfg.verify_cert_chain) {
+        if (ws->cfg.ca_cert_pem == NULL || ws->cfg.ca_cert_len == 0U) {
+            return BK_ERR_NET_TLS_VERIFY_FAILED;
+        }
+    }
+
+    mbedtls_ssl_init(&ws->ssl);
+    mbedtls_ssl_config_init(&ws->tls_conf);
+    mbedtls_x509_crt_init(&ws->ca_cert);
+    mbedtls_ctr_drbg_init(&ws->ctr_drbg);
+    mbedtls_entropy_init(&ws->entropy);
+    ws->mbedtls_active = true;
+
+    if (mbedtls_entropy_add_source(&ws->entropy,
+                                   bk7259_entropy_poll,
+                                   NULL,
+                                   MBEDTLS_ENTROPY_MAX_GATHER,
+                                   MBEDTLS_ENTROPY_SOURCE_STRONG) != 0) {
+        close_bk7259_mbedtls(ws);
+        return BK_ERR_NET_TLS_VERIFY_FAILED;
+    }
+
+    const char *pers = "bk_of_wss";
+    if (mbedtls_ctr_drbg_seed(&ws->ctr_drbg,
+                              mbedtls_entropy_func,
+                              &ws->entropy,
+                              (const unsigned char *)pers,
+                              strlen(pers)) != 0) {
+        close_bk7259_mbedtls(ws);
+        return BK_ERR_NET_TLS_VERIFY_FAILED;
+    }
+
+    if (mbedtls_ssl_config_defaults(&ws->tls_conf,
+                                    MBEDTLS_SSL_IS_CLIENT,
+                                    MBEDTLS_SSL_TRANSPORT_STREAM,
+                                    MBEDTLS_SSL_PRESET_DEFAULT) != 0) {
+        close_bk7259_mbedtls(ws);
+        return BK_ERR_NET_TLS_VERIFY_FAILED;
+    }
+
+    if (ws->cfg.verify_cert_chain) {
+        if (mbedtls_x509_crt_parse(&ws->ca_cert,
+                                   ws->cfg.ca_cert_pem,
+                                   ws->cfg.ca_cert_len) < 0) {
+            close_bk7259_mbedtls(ws);
+            return BK_ERR_NET_TLS_VERIFY_FAILED;
+        }
+        mbedtls_ssl_conf_ca_chain(&ws->tls_conf, &ws->ca_cert, NULL);
+        mbedtls_ssl_conf_authmode(&ws->tls_conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+    } else {
+        close_bk7259_mbedtls(ws);
+        return BK_ERR_NET_TLS_VERIFY_FAILED;
+    }
+
+    mbedtls_ssl_conf_rng(&ws->tls_conf, mbedtls_ctr_drbg_random, &ws->ctr_drbg);
+
+    if (mbedtls_ssl_setup(&ws->ssl, &ws->tls_conf) != 0) {
+        close_bk7259_mbedtls(ws);
+        return BK_ERR_NET_TLS_VERIFY_FAILED;
+    }
+
+    if (ws->cfg.verify_sni) {
+        const char *sni = (ws->cfg.sni_hostname != NULL && ws->cfg.sni_hostname[0] != '\0')
+                              ? ws->cfg.sni_hostname
+                              : ws->host;
+        if (mbedtls_ssl_set_hostname(&ws->ssl, sni) != 0) {
+            close_bk7259_mbedtls(ws);
+            return BK_ERR_NET_TLS_VERIFY_FAILED;
+        }
+    } else {
+        close_bk7259_mbedtls(ws);
+        return BK_ERR_NET_TLS_VERIFY_FAILED;
+    }
+
+    ws->tls_net.fd = ws->sock_fd;
+    mbedtls_ssl_set_bio(&ws->ssl, &ws->tls_net, mbedtls_net_send, mbedtls_net_recv, NULL);
+
+    uint64_t deadline = bk_port_get_time_ms() +
+                        (uint64_t)((ws->cfg.connect_timeout_ms > 0U) ? ws->cfg.connect_timeout_ms : 5000U);
+    for (;;) {
+        int hs = mbedtls_ssl_handshake(&ws->ssl);
+        if (hs == 0) {
+            break;
+        }
+        if (hs != MBEDTLS_ERR_SSL_WANT_READ && hs != MBEDTLS_ERR_SSL_WANT_WRITE) {
+            close_bk7259_mbedtls(ws);
+            return BK_ERR_NET_TLS_VERIFY_FAILED;
+        }
+        if (bk_port_get_time_ms() >= deadline) {
+            close_bk7259_mbedtls(ws);
+            return BK_ERR_TIMEOUT;
+        }
+        bk_port_sleep_ms(1U);
+    }
+
+    if (mbedtls_ssl_get_verify_result(&ws->ssl) != 0U) {
+        close_bk7259_mbedtls(ws);
+        return BK_ERR_NET_TLS_VERIFY_FAILED;
+    }
+    return BK_OK;
+}
+#endif
+
+/* --- Low-level stream I/O (POSIX/lwIP socket, BK7259 mbedTLS, or custom io_ops) --- */
 
 static void close_stream(struct bk_ws_transport *ws)
 {
+    reset_frag_buffer(ws);
     if (ws->cfg.io_ops != NULL && ws->cfg.io_ops->close != NULL) {
         ws->cfg.io_ops->close(ws->cfg.io_ops->io_ctx);
     }
-#if !defined(BK_OF_BUILDING_TARGET_BK7259)
+#if defined(BK_OF_BUILDING_TARGET_BK7259)
+    close_bk7259_mbedtls(ws);
+#endif
     if (ws->sock_fd >= 0) {
         close(ws->sock_fd);
         ws->sock_fd = -1;
     }
+}
+
+static bk_err_t connect_socket_with_timeout(const char *host,
+                                            uint16_t port,
+                                            uint32_t timeout_ms,
+                                            int *out_fd)
+{
+    char port_str[16];
+    snprintf(port_str, sizeof(port_str), "%u", (unsigned int)port);
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    struct addrinfo *res = NULL;
+    if (getaddrinfo(host, port_str, &hints, &res) != 0 || res == NULL) {
+        return BK_ERR_IO;
+    }
+
+    int connected_fd = -1;
+    bk_err_t last_err = BK_ERR_IO;
+    for (struct addrinfo *rp = res; rp != NULL; rp = rp->ai_next) {
+        int fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (fd < 0) {
+            continue;
+        }
+#ifdef SO_NOSIGPIPE
+        int set_nosigpipe = 1;
+        (void)setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &set_nosigpipe, sizeof(set_nosigpipe));
 #endif
+        int flags = fcntl(fd, F_GETFL, 0);
+        if (flags >= 0) {
+            (void)fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+        }
+
+        int rc = connect(fd, rp->ai_addr, rp->ai_addrlen);
+        if (rc < 0) {
+            if (errno == EINPROGRESS || errno == EALREADY || errno == EWOULDBLOCK) {
+                fd_set wfds;
+                FD_ZERO(&wfds);
+                FD_SET(fd, &wfds);
+                struct timeval tv;
+                tv.tv_sec = (time_t)(timeout_ms / 1000U);
+                tv.tv_usec = (suseconds_t)((timeout_ms % 1000U) * 1000U);
+                int sel = select(fd + 1, NULL, &wfds, NULL, &tv);
+                if (sel == 0) {
+                    last_err = BK_ERR_TIMEOUT;
+                    close(fd);
+                    continue;
+                }
+                if (sel < 0) {
+                    close(fd);
+                    continue;
+                }
+                int so_err = 0;
+                socklen_t so_len = (socklen_t)sizeof(so_err);
+                if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &so_err, &so_len) < 0 || so_err != 0) {
+                    close(fd);
+                    continue;
+                }
+            } else {
+                close(fd);
+                continue;
+            }
+        }
+
+        if (flags >= 0) {
+            (void)fcntl(fd, F_SETFL, flags);
+        }
+        connected_fd = fd;
+        break;
+    }
+
+    freeaddrinfo(res);
+    if (connected_fd < 0) {
+        return last_err;
+    }
+    *out_fd = connected_fd;
+    return BK_OK;
 }
 
 static bk_err_t stream_write_all(struct bk_ws_transport *ws, const uint8_t *buf, size_t len)
@@ -290,8 +536,16 @@ static bk_err_t stream_write_all(struct bk_ws_transport *ws, const uint8_t *buf,
         int n = -1;
         if (ws->cfg.io_ops != NULL && ws->cfg.io_ops->send != NULL) {
             n = ws->cfg.io_ops->send(buf + sent, len - sent, ws->cfg.io_ops->io_ctx);
-        } else {
-#if !defined(BK_OF_BUILDING_TARGET_BK7259)
+        }
+#if defined(BK_OF_BUILDING_TARGET_BK7259)
+        else if (ws->mbedtls_active) {
+            n = mbedtls_ssl_write(&ws->ssl, buf + sent, len - sent);
+            if (n == MBEDTLS_ERR_SSL_WANT_WRITE || n == MBEDTLS_ERR_SSL_WANT_READ) {
+                continue;
+            }
+        }
+#endif
+        else {
             if (ws->sock_fd < 0) {
                 return BK_ERR_INVALID_STATE;
             }
@@ -299,9 +553,6 @@ static bk_err_t stream_write_all(struct bk_ws_transport *ws, const uint8_t *buf,
             n = (int)send(ws->sock_fd, buf + sent, len - sent, MSG_NOSIGNAL);
 #else
             n = (int)send(ws->sock_fd, buf + sent, len - sent, 0);
-#endif
-#else
-            return BK_ERR_NOT_SUPPORTED;
 #endif
         }
         if (n <= 0) {
@@ -320,10 +571,15 @@ static int stream_read_some(struct bk_ws_transport *ws,
     if (ws->cfg.io_ops != NULL && ws->cfg.io_ops->recv != NULL) {
         return ws->cfg.io_ops->recv(buf, len, timeout_ms, ws->cfg.io_ops->io_ctx);
     }
-#if !defined(BK_OF_BUILDING_TARGET_BK7259)
     if (ws->sock_fd < 0) {
         return -1;
     }
+#if defined(BK_OF_BUILDING_TARGET_BK7259)
+    if (ws->mbedtls_active && mbedtls_ssl_get_bytes_avail(&ws->ssl) > 0U) {
+        int ret = mbedtls_ssl_read(&ws->ssl, buf, len);
+        return (ret > 0) ? ret : -1;
+    }
+#endif
     fd_set rfds;
     FD_ZERO(&rfds);
     FD_SET(ws->sock_fd, &rfds);
@@ -337,14 +593,14 @@ static int stream_read_some(struct bk_ws_transport *ws,
     if (r < 0) {
         return -1;
     }
+#if defined(BK_OF_BUILDING_TARGET_BK7259)
+    if (ws->mbedtls_active) {
+        int ret = mbedtls_ssl_read(&ws->ssl, buf, len);
+        return (ret > 0) ? ret : -1;
+    }
+#endif
     ssize_t n = recv(ws->sock_fd, buf, len, 0);
     return (int)n;
-#else
-    (void)buf;
-    (void)len;
-    (void)timeout_ms;
-    return -1;
-#endif
 }
 
 static bk_err_t stream_read_exact(struct bk_ws_transport *ws,
@@ -404,7 +660,6 @@ bk_err_t bk_ws_transport_create(const bk_ws_transport_config_t *cfg,
     ws->cfg = *cfg;
     ws->sock_fd = -1;
     ws->state = BK_WS_STATE_DISCONNECTED;
-    ws->mask_seed = 0x9E3779B9U ^ (uint32_t)bk_port_get_time_ms();
     *out_ws = ws;
     return BK_OK;
 }
@@ -526,10 +781,11 @@ bk_err_t bk_ws_transport_connect(bk_ws_transport_handle_t ws)
         } else if (!ws->cfg.verify_cert_chain || !ws->cfg.verify_sni) {
             return BK_ERR_NET_TLS_VERIFY_FAILED;
         }
-        /* Fail closed if wss:// is requested without a TLS stream backend */
+#if !defined(BK_OF_BUILDING_TARGET_BK7259)
         if (ws->cfg.io_ops == NULL) {
             return BK_ERR_NOT_SUPPORTED;
         }
+#endif
     } else {
         if (!ws->cfg.allow_plain_ws) {
             return BK_ERR_NET_TLS_VERIFY_FAILED;
@@ -550,51 +806,30 @@ bk_err_t bk_ws_transport_connect(bk_ws_transport_handle_t ws)
             }
         }
     } else {
-#if !defined(BK_OF_BUILDING_TARGET_BK7259)
-        char port_str[16];
-        snprintf(port_str, sizeof(port_str), "%u", (unsigned int)ws->port);
-        struct addrinfo hints;
-        memset(&hints, 0, sizeof(hints));
-        hints.ai_family = AF_UNSPEC;
-        hints.ai_socktype = SOCK_STREAM;
-        struct addrinfo *res = NULL;
-        if (getaddrinfo(ws->host, port_str, &hints, &res) != 0 || res == NULL) {
+        bk_err_t serr = connect_socket_with_timeout(ws->host, ws->port, timeout_ms, &ws->sock_fd);
+        if (serr != BK_OK) {
             ws->state = BK_WS_STATE_DISCONNECTED;
-            return BK_ERR_IO;
+            return serr;
         }
-        int fd = -1;
-        for (struct addrinfo *rp = res; rp != NULL; rp = rp->ai_next) {
-            fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-            if (fd < 0) {
-                continue;
+#if defined(BK_OF_BUILDING_TARGET_BK7259)
+        if (ws->is_tls) {
+            bk_err_t terr = setup_bk7259_mbedtls(ws);
+            if (terr != BK_OK) {
+                close_stream(ws);
+                ws->state = BK_WS_STATE_DISCONNECTED;
+                return terr;
             }
-#ifdef SO_NOSIGPIPE
-            int set_nosigpipe = 1;
-            (void)setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &set_nosigpipe, sizeof(set_nosigpipe));
-#endif
-            if (connect(fd, rp->ai_addr, rp->ai_addrlen) == 0) {
-                break;
-            }
-            close(fd);
-            fd = -1;
         }
-        freeaddrinfo(res);
-        if (fd < 0) {
-            ws->state = BK_WS_STATE_DISCONNECTED;
-            return BK_ERR_IO;
-        }
-        ws->sock_fd = fd;
-#else
-        ws->state = BK_WS_STATE_DISCONNECTED;
-        return BK_ERR_NOT_SUPPORTED;
 #endif
     }
 
-    /* Generate 16-byte nonce and Base64 Sec-WebSocket-Key */
+    /* Generate 16-byte CSPRNG nonce and Base64 Sec-WebSocket-Key */
     uint8_t nonce[16];
-    for (size_t i = 0; i < sizeof(nonce); ++i) {
-        ws->mask_seed = ws->mask_seed * 1664525U + 1013904223U;
-        nonce[i] = (uint8_t)((ws->mask_seed >> 16) & 0xFFU);
+    bk_err_t rerr_rng = bk_port_get_random(nonce, sizeof(nonce));
+    if (rerr_rng != BK_OK) {
+        close_stream(ws);
+        ws->state = BK_WS_STATE_DISCONNECTED;
+        return rerr_rng;
     }
     char sec_ws_key[32];
     (void)base64_encode(nonce, sizeof(nonce), sec_ws_key, sizeof(sec_ws_key));
@@ -694,9 +929,11 @@ static bk_err_t send_masked_frame(struct bk_ws_transport *ws,
     }
 
     uint8_t mask[4];
+    bk_err_t rerr = bk_port_get_random(mask, sizeof(mask));
+    if (rerr != BK_OK) {
+        return rerr;
+    }
     for (int i = 0; i < 4; ++i) {
-        ws->mask_seed = ws->mask_seed * 1664525U + 1013904223U;
-        mask[i] = (uint8_t)((ws->mask_seed >> 24) & 0xFFU);
         hdr[hdr_len++] = mask[i];
     }
 
@@ -815,6 +1052,16 @@ static void notify_remote_disconnect(struct bk_ws_transport *ws, int reason_code
     }
 }
 
+static bool is_valid_opcode(uint8_t opcode)
+{
+    return opcode == (uint8_t)BK_WS_FRAME_CONTINUATION ||
+           opcode == (uint8_t)BK_WS_FRAME_TEXT ||
+           opcode == (uint8_t)BK_WS_FRAME_BINARY ||
+           opcode == (uint8_t)BK_WS_FRAME_CLOSE ||
+           opcode == (uint8_t)BK_WS_FRAME_PING ||
+           opcode == (uint8_t)BK_WS_FRAME_PONG;
+}
+
 bk_err_t bk_ws_transport_poll(bk_ws_transport_handle_t ws, uint32_t timeout_ms)
 {
     if (ws == NULL) {
@@ -834,9 +1081,33 @@ bk_err_t bk_ws_transport_poll(bk_ws_transport_handle_t ws, uint32_t timeout_ms)
         return err;
     }
 
+    bool fin = (hdr2[0] & 0x80U) != 0U;
+    uint8_t rsv = (uint8_t)(hdr2[0] & 0x70U);
     uint8_t opcode = (uint8_t)(hdr2[0] & 0x0FU);
     bool masked = (hdr2[1] & 0x80U) != 0U;
     uint64_t payload_len = (uint64_t)(hdr2[1] & 0x7FU);
+
+    /*
+     * RFC 6455 Section 5.1 / 5.2 / 5.5 validation:
+     * - RSV1/RSV2/RSV3 MUST be 0 when no extension was negotiated
+     * - Server-to-client frames MUST NOT be masked
+     * - Opcode MUST be a defined RFC 6455 opcode
+     * - Control frames (opcode & 0x08) MUST have FIN == 1 and payload_len <= 125
+     * - CLOSE frame (0x8) MUST NOT have a 1-byte payload
+     */
+    bool is_control = (opcode & 0x08U) != 0U;
+    if (rsv != 0U || masked || !is_valid_opcode(opcode)) {
+        notify_remote_disconnect(ws, 1002);
+        return BK_ERR_CORRUPTED;
+    }
+    if (is_control && (!fin || payload_len > 125U)) {
+        notify_remote_disconnect(ws, 1002);
+        return BK_ERR_CORRUPTED;
+    }
+    if (opcode == (uint8_t)BK_WS_FRAME_CLOSE && payload_len == 1U) {
+        notify_remote_disconnect(ws, 1002);
+        return BK_ERR_CORRUPTED;
+    }
 
     if (payload_len == 126U) {
         uint8_t ext[2];
@@ -862,14 +1133,6 @@ bk_err_t bk_ws_transport_poll(bk_ws_transport_handle_t ws, uint32_t timeout_ms)
         return BK_ERR_PAYLOAD_TOO_LARGE;
     }
 
-    uint8_t mask[4] = {0};
-    if (masked) {
-        if (stream_read_exact(ws, mask, 4U, timeout_ms) != BK_OK) {
-            notify_remote_disconnect(ws, 1006);
-            return BK_ERR_IO;
-        }
-    }
-
     uint8_t *payload = (uint8_t *)bk_port_malloc(
         (size_t)payload_len + 1U, BK_MEM_CAP_DEFAULT, "bk_ws_rx");
     if (payload == NULL) {
@@ -882,18 +1145,22 @@ bk_err_t bk_ws_transport_poll(bk_ws_transport_handle_t ws, uint32_t timeout_ms)
             notify_remote_disconnect(ws, 1006);
             return BK_ERR_IO;
         }
-        if (masked) {
-            for (size_t i = 0U; i < (size_t)payload_len; ++i) {
-                payload[i] ^= mask[i & 3U];
-            }
-        }
     }
     payload[payload_len] = 0U;
 
+    /* Control frames (may be interleaved during fragmented message) */
     if (opcode == (uint8_t)BK_WS_FRAME_PING) {
         (void)bk_ws_transport_send_pong(ws, payload, (size_t)payload_len);
         if (ws->cfg.rx_cb != NULL) {
             (void)ws->cfg.rx_cb(BK_WS_FRAME_PING, payload, (size_t)payload_len, ws->cfg.rx_cb_ctx);
+        }
+        bk_port_free(payload);
+        return BK_OK;
+    }
+
+    if (opcode == (uint8_t)BK_WS_FRAME_PONG) {
+        if (ws->cfg.rx_cb != NULL) {
+            (void)ws->cfg.rx_cb(BK_WS_FRAME_PONG, payload, (size_t)payload_len, ws->cfg.rx_cb_ctx);
         }
         bk_port_free(payload);
         return BK_OK;
@@ -906,6 +1173,72 @@ bk_err_t bk_ws_transport_poll(bk_ws_transport_handle_t ws, uint32_t timeout_ms)
         }
         bk_port_free(payload);
         notify_remote_disconnect(ws, reason);
+        return BK_OK;
+    }
+
+    /* Data & Continuation frame fragmentation state machine (RFC 6455 Section 5.4) */
+    if (opcode == (uint8_t)BK_WS_FRAME_CONTINUATION) {
+        if (ws->frag_opcode == 0U) {
+            bk_port_free(payload);
+            notify_remote_disconnect(ws, 1002);
+            return BK_ERR_CORRUPTED;
+        }
+        if (ws->frag_len + (size_t)payload_len > BK_WS_MAX_RX_FRAME_BYTES) {
+            bk_port_free(payload);
+            notify_remote_disconnect(ws, 1009);
+            return BK_ERR_PAYLOAD_TOO_LARGE;
+        }
+        uint8_t *new_buf = (uint8_t *)bk_port_malloc(
+            ws->frag_len + (size_t)payload_len + 1U, BK_MEM_CAP_DEFAULT, "bk_ws_frag");
+        if (new_buf == NULL) {
+            bk_port_free(payload);
+            return BK_ERR_NO_MEM;
+        }
+        if (ws->frag_len > 0U && ws->frag_buf != NULL) {
+            memcpy(new_buf, ws->frag_buf, ws->frag_len);
+        }
+        if (payload_len > 0U) {
+            memcpy(new_buf + ws->frag_len, payload, (size_t)payload_len);
+        }
+        bk_port_free(payload);
+        if (ws->frag_buf != NULL) {
+            bk_port_free(ws->frag_buf);
+        }
+        ws->frag_buf = new_buf;
+        ws->frag_len += (size_t)payload_len;
+        ws->frag_buf[ws->frag_len] = 0U;
+
+        if (!fin) {
+            return BK_OK;
+        }
+
+        bk_ws_frame_type_t completed_type = (bk_ws_frame_type_t)ws->frag_opcode;
+        uint8_t *completed_buf = ws->frag_buf;
+        size_t completed_len = ws->frag_len;
+        ws->frag_buf = NULL;
+        ws->frag_len = 0U;
+        ws->frag_opcode = 0U;
+
+        bk_err_t cb_err = BK_OK;
+        if (ws->cfg.rx_cb != NULL) {
+            cb_err = ws->cfg.rx_cb(completed_type, completed_buf, completed_len, ws->cfg.rx_cb_ctx);
+        }
+        bk_port_free(completed_buf);
+        return cb_err;
+    }
+
+    /* Initial data frame (TEXT or BINARY) */
+    if (ws->frag_opcode != 0U) {
+        /* New data frame arrived before previous fragmented message finished */
+        bk_port_free(payload);
+        notify_remote_disconnect(ws, 1002);
+        return BK_ERR_CORRUPTED;
+    }
+
+    if (!fin) {
+        ws->frag_opcode = opcode;
+        ws->frag_buf = payload;
+        ws->frag_len = (size_t)payload_len;
         return BK_OK;
     }
 

@@ -1,4 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE 1
+#endif
 #define _POSIX_C_SOURCE 200809L
 
 #include "bk_port_cache.h"
@@ -6,11 +9,13 @@
 #include "bk_port_os.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 struct bk_port_mutex {
     pthread_mutex_t handle;
@@ -154,6 +159,35 @@ void bk_port_sleep_ms(uint32_t ms)
     ts.tv_sec = (time_t)(ms / 1000U);
     ts.tv_nsec = (long)((ms % 1000U) * 1000000L);
     nanosleep(&ts, NULL);
+}
+
+bk_err_t bk_port_get_random(void *buf, size_t len)
+{
+    if (buf == NULL && len > 0U) {
+        return BK_ERR_INVALID_ARG;
+    }
+    if (len == 0U) {
+        return BK_OK;
+    }
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0) {
+        return BK_ERR_IO;
+    }
+    uint8_t *out = (uint8_t *)buf;
+    size_t got = 0U;
+    while (got < len) {
+        ssize_t n = read(fd, out + got, len - got);
+        if (n <= 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            close(fd);
+            return BK_ERR_IO;
+        }
+        got += (size_t)n;
+    }
+    close(fd);
+    return BK_OK;
 }
 
 void *bk_port_malloc(size_t size, uint32_t caps, const char *tag)

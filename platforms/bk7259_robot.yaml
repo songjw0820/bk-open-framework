@@ -48,4 +48,3 @@ product_components:
 # proprietary libagora-rtc-sdk.a + commercial license; currently unverified stub):
 optional_plugins:
   - plugin_agora
-

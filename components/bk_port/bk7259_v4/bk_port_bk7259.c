@@ -12,6 +12,7 @@
 #include "bk_port_mem.h"
 #include "bk_port_os.h"
 
+#include <components/system.h>
 #include <os/mem.h>
 #include <os/os.h>
 #include <string.h>
@@ -158,6 +159,22 @@ uint64_t bk_port_get_time_ms(void)
 void bk_port_sleep_ms(uint32_t ms)
 {
     rtos_delay_milliseconds(ms);
+}
+
+bk_err_t bk_port_get_random(void *buf, size_t len)
+{
+    if (buf == NULL && len > 0U) {
+        return BK_ERR_INVALID_ARG;
+    }
+    uint8_t *out = (uint8_t *)buf;
+    size_t pos = 0U;
+    while (pos < len) {
+        uint32_t rnd = (uint32_t)bk_rand();
+        size_t chunk = (len - pos < sizeof(rnd)) ? (len - pos) : sizeof(rnd);
+        os_memcpy(out + pos, &rnd, chunk);
+        pos += chunk;
+    }
+    return BK_OK;
 }
 
 void *bk_port_malloc(size_t size, uint32_t caps, const char *tag)
