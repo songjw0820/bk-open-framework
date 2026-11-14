@@ -19,6 +19,7 @@ add_subdirectory(components/bk_core_event)
 add_subdirectory(components/bk_storage)
 add_subdirectory(components/bk_health)
 add_subdirectory(components/bk_board)
+add_subdirectory(components/bk_net)
 
 add_executable(test_event_loop components/bk_core_event/tests/test_event_loop.c)
 target_link_libraries(test_event_loop PRIVATE bk_core_event bk_port bk_common)
@@ -31,3 +32,15 @@ add_test(NAME test_storage_security COMMAND test_storage_security)
 add_executable(test_board_caps components/bk_board/tests/test_board_caps.c)
 target_link_libraries(test_board_caps PRIVATE bk_board bk_health bk_port bk_common)
 add_test(NAME test_board_caps COMMAND test_board_caps)
+
+add_executable(test_net_fsm components/bk_net/tests/test_net_fsm.c)
+target_link_libraries(test_net_fsm PRIVATE bk_net bk_storage bk_core_event bk_port bk_common)
+add_test(NAME test_net_fsm COMMAND test_net_fsm)
+
+add_executable(example_01_wifi_provision examples/01_wifi_provision/main.c)
+target_link_libraries(example_01_wifi_provision PRIVATE bk_net bk_board bk_storage bk_core_event bk_port bk_common)
+add_test(NAME example_01_wifi_provision COMMAND example_01_wifi_provision)
+
+add_executable(example_02_lan_device examples/02_lan_device/main.c)
+target_link_libraries(example_02_lan_device PRIVATE bk_net bk_board bk_port bk_common)
+add_test(NAME example_02_lan_device COMMAND example_02_lan_device)

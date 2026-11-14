@@ -1,0 +1,6 @@
+menu "BK Open Framework Network & Provisioning"
+    config BK_OF_NET_ENABLE
+        bool "Enable BK Open Framework Wi-Fi FSM, provisioning, and SNTP/TLS gate"
+        default y
+        depends on BK_OF_CORE_EVENT_ENABLE && BK_OF_STORAGE_ENABLE
+endmenu
