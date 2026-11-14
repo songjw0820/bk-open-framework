@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""bk-open-framework CLI entry point (list-profiles, doctor, fetch)."""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+import shutil
+import sys
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tools.bk_fetch import build_fetch_plan, execute_fetch_plan
+from tools.bk_manifest import (
+    ManifestValidationError,
+    list_manifests,
+    load_manifest,
+    verify_git_checkout_sha,
+)
+
+
+PLATFORMS_DIR = REPO_ROOT / "platforms"
+
+
+def _resolve_manifest_path(profile_arg: str) -> Path:
+    candidate = PLATFORMS_DIR / f"{profile_arg}.yaml"
+    if candidate.is_file():
+        return candidate
+    for path in list_manifests(PLATFORMS_DIR):
+        data = load_manifest(path)
+        if data["name"] == profile_arg or data["profile"] == profile_arg:
+            return path
+    raise ManifestValidationError(f"Unknown profile '{profile_arg}'")
+
+
+def cmd_list_profiles(_args: argparse.Namespace) -> int:
+    for path in list_manifests(PLATFORMS_DIR):
+        data = load_manifest(path)
+        sol_state = "none" if data["solution"] is None else data["solution"]["ref"]
+        print(
+            f"{data['name']}\tchip={data['chip']}\tprofile={data['profile']}\t"
+            f"sdk={data['sdk']['ref']}@{data['sdk']['peeled_commit_sha'][:8]}\t"
+            f"solution={sol_state}"
+        )
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    manifest_path = _resolve_manifest_path(args.profile)
+    manifest = load_manifest(manifest_path)
+    profile = manifest["profile"]
+
+    if profile == "minimal" and args.solution_dir:
+        print(
+            "ERROR: minimal profile forbids --solution-dir (100% isolated from bk_solution_ai)",
+            file=sys.stderr,
+        )
+        return 2
+
+    cp_tpl = f"{manifest['cp_template']['source']}:{manifest['cp_template']['path']}"
+    sol_dep = "none" if manifest["solution"] is None else manifest["solution"]["peeled_commit_sha"]
+    toolchain = shutil.which("arm-none-eabi-gcc") or "not_found_in_path"
+
+    print(f"manifest={manifest_path.name}")
+    print(f"name={manifest['name']}")
+    print(f"profile={profile}")
+    print(f"sdk_peeled_commit_sha={manifest['sdk']['peeled_commit_sha']}")
+    print(f"solution_dependency={sol_dep}")
+    print(f"cp_template={cp_tpl}")
+    print(f"toolchain_arm_none_eabi_gcc={toolchain}")
+
+    if args.sdk_dir:
+        sdk_dir = Path(args.sdk_dir)
+        verify_git_checkout_sha(sdk_dir, manifest["sdk"]["peeled_commit_sha"], "SDK")
+        if profile == "minimal":
+            cp_dir = sdk_dir / manifest["cp_template"]["path"]
+            if not cp_dir.is_dir():
+                raise ManifestValidationError(f"Missing minimal CP template directory: {cp_dir}")
+        print(f"sdk_checkout_verified={sdk_dir}")
+
+    if args.solution_dir:
+        sol_dir = Path(args.solution_dir)
+        verify_git_checkout_sha(
+            sol_dir,
+            manifest["solution"]["peeled_commit_sha"],
+            "Solution",
+        )
+        cp_dir = sol_dir / manifest["cp_template"]["path"]
+        if not cp_dir.is_dir():
+            raise ManifestValidationError(f"Missing robot CP template directory: {cp_dir}")
+        print(f"solution_checkout_verified={sol_dir}")
+
+    return 0
+
+
+def cmd_fetch(args: argparse.Namespace) -> int:
+    manifest_path = _resolve_manifest_path(args.profile)
+    manifest = load_manifest(manifest_path)
+    dest_root = Path(args.dest_dir)
+    plan = build_fetch_plan(manifest, dest_root)
+    messages = execute_fetch_plan(plan, dry_run=args.dry_run)
+    for msg in messages:
+        print(msg)
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="bk", description="bk-open-framework CLI")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("list-profiles", help="List locked platform profiles")
+
+    p_doc = sub.add_parser("doctor", help="Validate manifest isolation and optional checkouts")
+    p_doc.add_argument("--profile", required=True, help="Profile name (e.g. bk7259_minimal or bk7259_robot)")
+    p_doc.add_argument("--sdk-dir", help="Optional path to local bk_avdk_smp checkout")
+    p_doc.add_argument("--solution-dir", help="Optional path to local bk_solution_ai checkout")
+
+    p_fetch = sub.add_parser("fetch", help="Fetch locked SDK (and solution for robot profile)")
+    p_fetch.add_argument("--profile", required=True, help="Profile name")
+    p_fetch.add_argument(
+        "--dest-dir",
+        default=str(REPO_ROOT / "external"),
+        help="Destination directory for external repositories",
+    )
+    p_fetch.add_argument("--dry-run", action="store_true", help="Print fetch plan without cloning")
+
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "list-profiles":
+            return cmd_list_profiles(args)
+        if args.command == "doctor":
+            return cmd_doctor(args)
+        if args.command == "fetch":
+            return cmd_fetch(args)
+    except ManifestValidationError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
