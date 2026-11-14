@@ -1,6 +1,7 @@
 name: bk7259_minimal
 chip: BK7259
-board: bk7259_robot
+board: bk7259_app_minimal
+target_hardware: bk7259_robot
 profile: minimal
 sdk:
   repository: https://github.com/bekencorp/bk_avdk_smp.git
@@ -9,7 +10,8 @@ sdk:
   peeled_commit_sha: 584b947920c414230f9909375f008e7d6a2c6c6b
 solution: null
 # This profile intentionally has zero bk_solution_ai dependency.
-# Its controlled CP baseline template comes strictly from bk_avdk_smp/projects/app/cp.
+# 'board: bk7259_app_minimal' uses the pure SDK baseline (bk_avdk_smp/projects/app),
+# while 'target_hardware: bk7259_robot' indicates the physical board used for smoke testing.
 cp_template:
   source: sdk
   path: projects/app/cp
