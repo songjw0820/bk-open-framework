@@ -18,6 +18,7 @@ CONFIG_BK_OF_ESP_COMPAT_ENABLE=y
 CONFIG_BK_OF_PRODUCT_MOTION_ENABLE=y
 CONFIG_BK_OF_PRODUCT_ROBOT_FACE_ENABLE=y
 CONFIG_BK_OF_PRODUCT_BATTERY_POLICY_ENABLE=y
+CONFIG_BK_OF_PRODUCT_ROBOT_ENABLE=y
 # Proprietary Agora SDK is disabled by default in open-source Xiaozhi mode:
 CONFIG_BK_PLUGIN_AGORA_ENABLE=n
 # Deferred until 5 OTA partition/size prerequisites are verified on hardware:

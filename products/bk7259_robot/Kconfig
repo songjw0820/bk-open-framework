@@ -1,0 +1,9 @@
+menu "BK Open Framework Robot Product"
+    config BK_OF_PRODUCT_ROBOT_ENABLE
+        bool "Enable bk7259_robot product controller"
+        default y
+        select BK_OF_AI_AGENT_ENABLE
+        select BK_OF_PRODUCT_MOTION_ENABLE
+        select BK_OF_PRODUCT_ROBOT_FACE_ENABLE
+        select BK_OF_PRODUCT_BATTERY_POLICY_ENABLE
+endmenu

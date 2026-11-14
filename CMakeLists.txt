@@ -35,12 +35,7 @@ add_subdirectory(product_components/bk_robot_face)
 add_subdirectory(product_components/bk_battery_policy)
 add_subdirectory(plugins/plugin_agora)
 
-add_library(bk_robot_product STATIC products/bk7259_robot/src/bk_robot_product.c)
-target_include_directories(bk_robot_product PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/products/bk7259_robot/include")
-target_link_libraries(bk_robot_product PUBLIC
-    bk_ai_agent bk_motion bk_robot_face bk_battery_policy
-    bk_ui_core bk_audio_session bk_board bk_port bk_common
-)
+add_subdirectory(products/bk7259_robot)
 
 add_executable(test_event_loop components/bk_core_event/tests/test_event_loop.c)
 target_link_libraries(test_event_loop PRIVATE bk_core_event bk_port bk_common)
@@ -104,17 +99,32 @@ add_executable(test_esp_compat components/bk_esp_compat/tests/test_esp_compat.c)
 target_link_libraries(test_esp_compat PRIVATE bk_esp_compat bk_port bk_common)
 add_test(NAME test_esp_compat COMMAND test_esp_compat)
 
-# Compile & verify the BK7259 target code paths (bk_port_bk7259.c + mbedTLS wss:// + <modules/opus.h>)
+# Compile & verify ALL BK7259 target code paths (bk_port_bk7259.c + mbedTLS wss:// + <modules/opus.h> + all components & robot product)
 add_executable(test_bk7259_target_adapter
     tests/test_bk7259_target_adapter.c
     components/bk_port/bk7259_v4/bk_port_bk7259.c
     components/bk_ai_agent/transport_websocket/src/bk_ws_transport.c
     components/bk_ai_agent/protocol_xiaozhi/src/bk_protocol_xiaozhi.c
     components/bk_audio_session/src/bk_audio_session.c
+    components/bk_audio_mixer/src/bk_audio_mixer.c
+    components/bk_video_frame_pool/src/bk_video_frame_pool.c
+    components/bk_ui_core/src/bk_ui_core.c
     components/bk_board/src/bk_board.c
+    components/bk_health/src/bk_health.c
+    components/bk_button/src/bk_button.c
+    components/bk_led_effect/src/bk_led_effect.c
     components/bk_net/src/bk_net.c
+    components/bk_net/src/bk_provision.c
+    components/bk_net/src/bk_lan.c
     components/bk_storage/src/bk_storage.c
     components/bk_core_event/src/bk_core_event.c
+    components/bk_ota/src/bk_ota.c
+    components/bk_esp_compat/src/bk_esp_compat.c
+    product_components/bk_motion/src/bk_motion.c
+    product_components/bk_robot_face/src/bk_robot_face.c
+    product_components/bk_battery_policy/src/bk_battery_policy.c
+    plugins/plugin_agora/src/bk_plugin_agora.c
+    products/bk7259_robot/src/bk_robot_product.c
 )
 target_compile_definitions(test_bk7259_target_adapter PRIVATE BK_OF_BUILDING_TARGET_BK7259=1)
 target_include_directories(test_bk7259_target_adapter PRIVATE
@@ -123,10 +133,23 @@ target_include_directories(test_bk7259_target_adapter PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_ai_agent/transport_websocket/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_ai_agent/protocol_xiaozhi/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_audio_session/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_audio_mixer/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_video_frame_pool/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_ui_core/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_board/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_health/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_button/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_led_effect/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_net/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_storage/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_core_event/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_ota/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/bk_esp_compat/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/product_components/bk_motion/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/product_components/bk_robot_face/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/product_components/bk_battery_policy/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/plugins/plugin_agora/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/products/bk7259_robot/include"
 )
 target_link_libraries(test_bk7259_target_adapter PRIVATE bk_common pthread)
 add_test(NAME test_bk7259_target_adapter COMMAND test_bk7259_target_adapter)

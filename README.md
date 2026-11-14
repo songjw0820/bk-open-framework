@@ -9,9 +9,9 @@
 | 验证项 | 状态 |
 | --- | --- |
 | Host CTest | 15/15 通过 |
-| Python 工具测试 | 12/12 通过 |
+| Python 工具测试 | 15/15 通过 |
 | Docker ARM AP/CP 目标构建 | 已验证，生成 AP/CP ELF 和 `all-app.bin` |
-| 锁定 SDK SHA 的目标构建 | 待执行 |
+| 锁定 SDK SHA 的目标构建 | 已验证（`minimal` & `robot` 探针 `all-app.bin` / `app_pack.rbl`） |
 | BK7259 实机验收 | 待执行 |
 
 目标构建验证使用 `bekencorp/armino-idk:1.5` 容器和当前 SDK checkout。Profile 中锁定的 SDK 提交仍需单独完成复现构建，不能用容器构建结果替代实机验收。

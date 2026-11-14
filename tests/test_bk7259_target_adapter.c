@@ -6,11 +6,16 @@
 
 #include "bk_audio_session.h"
 #include "bk_board.h"
+#include "bk_ota.h"
+#include "bk_plugin_agora.h"
 #include "bk_port_cache.h"
 #include "bk_port_mem.h"
 #include "bk_port_os.h"
 #include "bk_protocol_xiaozhi.h"
+#include "bk_robot_product.h"
 #include "bk_ws_transport.h"
+#include "esp_timer.h"
+#include "nvs_flash.h"
 
 #include <components/system.h>
 #include <mbedtls/ctr_drbg.h>
@@ -628,8 +633,48 @@ int main(void)
 
     bk_xiaozhi_destroy(xz);
     bk_audio_session_destroy(audio);
+
+    /* Verify bk_robot_product controller & MCP tools under BK7259 target build */
+    bk_robot_product_app_t robot_app;
+    assert(bk_robot_product_init(&robot_app, ws) == BK_OK);
+    char mcp_out[256] = {0};
+    assert(bk_robot_product_mcp_dispatch("tools/list", "{}", mcp_out, sizeof(mcp_out), &robot_app) == BK_OK);
+    assert(strstr(mcp_out, "\"reset_head\"") != NULL);
+    assert(strstr(mcp_out, "\"set_emotion\"") != NULL);
+    assert(bk_robot_product_mcp_dispatch(
+               "tools/call", "{\"name\":\"set_emotion\",\"arguments\":{\"emotion\":\"surprised\"}}",
+               mcp_out, sizeof(mcp_out), &robot_app) == BK_OK);
+    assert(strstr(mcp_out, "\"surprised\"") != NULL);
+    assert(bk_robot_product_mcp_dispatch(
+               "tools/call", "{\"name\":\"nod_head\"}", mcp_out, sizeof(mcp_out), &robot_app) == BK_OK);
+    assert(strstr(mcp_out, "\"status\":\"ok\"") != NULL);
+    assert(bk_robot_product_tick(&robot_app, 3900U, false, robot_app.preset_start_ms + 180ULL) == BK_OK);
+    assert(robot_app.motion_allowed);
+    assert(bk_robot_product_mcp_dispatch(
+               "tools/call", "{\"name\":\"reset_head\"}", mcp_out, sizeof(mcp_out), &robot_app) == BK_OK);
+    assert(bk_robot_product_mcp_dispatch(
+               "tools/call", "{\"name\":\"get_battery_status\"}", mcp_out, sizeof(mcp_out), &robot_app) == BK_OK);
+    assert(strstr(mcp_out, "\"soc_pct\"") != NULL);
+    bk_robot_product_deinit(&robot_app);
+
+    /* Verify plugin_agora, bk_ota, and bk_esp_compat target symbols */
+    assert(!bk_plugin_agora_is_compiled_in());
+    assert(!bk_plugin_agora_is_sdk_linked());
+    uint8_t dummy_staging[16] = {0};
+    bk_ota_config_t bad_ota_cfg = {
+        .strategy = BK_OTA_STRATEGY_OVERWRITE,
+        .ota_partition_bytes = 264U * 1024U,
+        .has_control_partition = false,
+        .staging_buf = dummy_staging,
+        .staging_buf_cap = sizeof(dummy_staging),
+    };
+    bk_ota_handle_t ota_handle = NULL;
+    assert(bk_ota_create(&bad_ota_cfg, &ota_handle) == BK_ERR_NOT_VERIFIED);
+    assert(nvs_flash_init() == ESP_OK);
+    assert(esp_timer_get_time() >= 0);
+
     bk_ws_transport_destroy(ws);
 
-    printf("PASS: test_bk7259_target_adapter (BK7259 mbedTLS CA/SNI verify, rtos/psram/dcache port, <modules/opus.h> symbols)\n");
+    printf("PASS: test_bk7259_target_adapter (BK7259 mbedTLS CA/SNI verify, rtos/psram/dcache port, <modules/opus.h>, robot product, ota, esp_compat)\n");
     return 0;
 }

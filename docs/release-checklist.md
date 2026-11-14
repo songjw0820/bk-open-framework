@@ -1,7 +1,7 @@
 # BK Open Framework 发布与实机验收清单（Release & Hardware Acceptance Checklist）
 
 > **当前状态声明（Tier 1 Host 与锁定 SHA 目标探针已验证，硬件门禁待执行）**：
-> - **已验证（Verified）**：远端锁定 SHA、静态许可证审计、PyYAML 6.0.3 环境下的 `12/12` Python 单测、加载 libopus 动态库后的 `15/15` CTest，以及 Docker 锁定 SHA 的 `minimal`/`robot` AP/CP 探针构建。
+> - **已验证（Verified）**：远端锁定 SHA、静态许可证审计、PyYAML 6.0.3 环境下的 `15/15` Python 单测、加载 libopus 动态库后的 `15/15` CTest（含全组件 `BK_OF_BUILDING_TARGET_BK7259=1` 目标适配层编译与运行验证），以及 Docker 锁定 SHA 的 `minimal`/`robot` AP/CP 探针构建。
 > - **待执行（Pending）**：完成 Tier 3/4 `bk7259_robot` 实机验收及 `bk_ota` 实机尺寸、BL2 和真实 EC-P256 验证门禁。
 
 ---

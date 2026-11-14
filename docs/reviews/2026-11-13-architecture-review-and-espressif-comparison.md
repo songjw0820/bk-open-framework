@@ -44,7 +44,7 @@
 
 ## 二、 当前仓库实施进展与门禁状态（Rev 5 复核基线）
 
-1. **Tier 1 Host 行为门禁已在补齐依赖后通过**：在开启 `-Wall -Wextra -Werror -fsanitize=address,undefined` 的构建目录中，使用 PyYAML 6.0.3 和现有 libopus 动态库完成 `15/15` CTest 与 `12/12` Python 单测。未设置这两个依赖时，协议测试和 Python 测试会失败，验证环境必须记录依赖来源。
+1. **Tier 1 Host 行为门禁已在补齐依赖后通过**：在开启 `-Wall -Wextra -Werror -fsanitize=address,undefined` 的构建目录中，使用 PyYAML 6.0.3 和现有 libopus 动态库完成 `15/15` CTest（含全组件 `BK_OF_BUILDING_TARGET_BK7259=1` 目标适配层编译验证）与 `15/15` Python 单测。未设置这两个依赖时，协议测试和 Python 测试会失败，验证环境必须记录依赖来源。
 2. **乐鑫组件生态兼容层（`bk_esp_compat`）**：已交付 [`components/bk_esp_compat`](../../components/bk_esp_compat/) 与 [`docs/espressif-component-porting-guide.md`](../espressif-component-porting-guide.md)，提供经过 Host 单测覆盖的 ESP-IDF API 子集。`esp_timer`、`esp_event`、NVS、按键和 LED 的运行时语义仍需按具体组件版本补充验证，不能据此承诺所有 Registry 组件零修改移植。
 3. **OTA 安全边界**：`bk_ota` 在未提供 `sig_verify_fn` 时现在返回 `BK_ERR_NOT_SUPPORTED`，不会把非零字节当作 EC-P256 签名通过。真正的 mbedTLS/SDK EC-P256 验证、公钥来源和签名覆盖范围仍由目标集成提供。
 4. **Tier 2 ~ Tier 4 剩余硬件门禁**：已在 Docker `bekencorp/armino-idk:1.5` 中使用精确锁定 SHA 完成 `minimal` 和 `robot` 两次 `probe.sh --build`，AP/CP ELF、Kconfig on/off 符号裁剪和 `all-app.bin` 均通过，产物大小与 SHA256 已写入平台清单。仍需在 `bk7259_robot` 实机完成外设 DMA、音频、WSS 与 OTA 验收。
