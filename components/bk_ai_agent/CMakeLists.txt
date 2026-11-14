@@ -14,7 +14,9 @@ if(COMMAND armino_component_register)
         REQUIRES bk_common bk_port bk_net bk_audio_session
         PRIV_REQUIRES bk_libs psa_mbedtls lwip_intf_v2_1
     )
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE BK_OF_BUILDING_TARGET_BK7259=1)
+    if(CONFIG_BK_OF_AI_AGENT_ENABLE)
+        target_compile_definitions(${COMPONENT_LIB} PRIVATE BK_OF_BUILDING_TARGET_BK7259=1)
+    endif()
 else()
     add_library(bk_ai_agent STATIC
         transport_websocket/src/bk_ws_transport.c

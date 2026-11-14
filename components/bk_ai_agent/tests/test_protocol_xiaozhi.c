@@ -340,7 +340,10 @@ typedef struct {
     size_t rx_pos;
     bool omit_upgrade_header;
     bool omit_connection_header;
+    const char *connection_header_value;
 } mock_illegal_io_t;
+
+static int mock_io_recv(uint8_t *buf, size_t len, uint32_t timeout_ms, void *io_ctx);
 
 static bk_err_t mock_io_connect(const char *host, uint16_t port, uint32_t timeout_ms, void *io_ctx)
 {
@@ -366,7 +369,11 @@ static int mock_io_send(const uint8_t *buf, size_t len, void *io_ctx)
         char accept_key[64] = {0};
         assert(bk_ws_compute_accept_key(sec_key, accept_key, sizeof(accept_key)) == BK_OK);
         const char *upgrade = io->omit_upgrade_header ? "" : "Upgrade: websocket\r\n";
-        const char *connection = io->omit_connection_header ? "" : "Connection: Upgrade\r\n";
+        const char *connection_value = io->connection_header_value != NULL ? io->connection_header_value : "Upgrade";
+        char connection[160] = {0};
+        if (!io->omit_connection_header) {
+            snprintf(connection, sizeof(connection), "Connection: %s\r\n", connection_value);
+        }
         int n = snprintf((char *)io->rx_buf,
                          sizeof(io->rx_buf),
                          "HTTP/1.1 101 Switching Protocols\r\n"
@@ -427,6 +434,31 @@ static int mock_io_recv(uint8_t *buf, size_t len, uint32_t timeout_ms, void *io_
     memcpy(buf, io->rx_buf + io->rx_pos, n);
     io->rx_pos += n;
     return (int)n;
+}
+
+static void test_connection_header_accepts_upgrade_token_list(void)
+{
+    mock_illegal_io_t mio;
+    memset(&mio, 0, sizeof(mio));
+    mio.connection_header_value = "keep-alive, Upgrade";
+    bk_ws_io_ops_t io_ops = {
+        .connect_fn = mock_io_connect,
+        .send_fn = mock_io_send,
+        .recv_fn = mock_io_recv,
+        .close_fn = NULL,
+        .io_ctx = &mio,
+    };
+    bk_ws_transport_config_t cfg = {
+        .uri = "wss://api.tenclass.net/xiaozhi/v1/",
+        .verify_cert_chain = true,
+        .verify_sni = true,
+        .io_ops = &io_ops,
+    };
+    bk_ws_transport_handle_t ws = NULL;
+    assert(bk_ws_transport_create(&cfg, &ws) == BK_OK);
+    assert(bk_ws_transport_connect(ws) == BK_OK);
+    assert(bk_ws_transport_is_connected(ws));
+    bk_ws_transport_destroy(ws);
 }
 
 static void test_rfc6455_illegal_frame_rejections(void)
@@ -697,6 +729,7 @@ int main(void)
 {
     bk_port_reset_mem_stats();
     test_upgrade_response_header_rejections();
+    test_connection_header_accepts_upgrade_token_list();
     test_rfc6455_illegal_frame_rejections();
     test_real_socket_ws_handshake_libopus_and_mcp();
 

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-#include "bk_net.h"
+#include "bk_of_net.h"
 
 extern bk_err_t bk_net_internal_set_provisioning(bk_net_handle_t net);
 
