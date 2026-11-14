@@ -1,0 +1,6 @@
+menu "BK Open Framework Health Diagnostics"
+    config BK_OF_HEALTH_ENABLE
+        bool "Enable BK Open Framework memory/cache health diagnostics"
+        default y
+        depends on BK_OF_PORT_ENABLE
+endmenu

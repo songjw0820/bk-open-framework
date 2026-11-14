@@ -1,0 +1,6 @@
+menu "BK Open Framework Audio Mixer"
+    config BK_OF_AUDIO_MIXER_ENABLE
+        bool "Enable BK Open Framework 20ms PCM Ducking/Preempt mixer"
+        default y
+        depends on BK_OF_AUDIO_SESSION_ENABLE
+endmenu

@@ -1,0 +1,14 @@
+Third-Party Protocol Specification Attribution
+==============================================
+
+The `protocol_xiaozhi` component in `bk-open-framework` is an independent,
+clean-room C11 implementation of the public Xiaozhi WebSocket wire protocol
+specification (JSON handshake/events, 60ms Opus binary audio framing, and
+MCP JSON-RPC 2.0 tool-calling envelope).
+
+Reference Protocol Specification:
+- Project: xiaozhi-esp32 (https://github.com/78/xiaozhi-esp32)
+- Document: docs/websocket.md
+- Upstream License: MIT License (Copyright (c) 2024-2025 Terrence / 78)
+
+No C++ source code from `xiaozhi-esp32` is copied into `bk-open-framework`.

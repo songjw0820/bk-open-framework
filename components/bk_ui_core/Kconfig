@@ -1,0 +1,6 @@
+menu "BK Open Framework UI Core"
+    config BK_OF_UI_CORE_ENABLE
+        bool "Enable BK Open Framework recursive LVGL lock wrapper"
+        default y
+        depends on BK_OF_BOARD_ENABLE && BK_OF_PORT_ENABLE
+endmenu

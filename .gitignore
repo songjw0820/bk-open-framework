@@ -1,1 +1,6 @@
-.worktrees/
+__pycache__/
+*.py[cod]
+build/
+build_host/
+external/
+.pytest_cache/

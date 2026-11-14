@@ -1,0 +1,6 @@
+menu "BK Open Framework Core Event Bus"
+    config BK_OF_CORE_EVENT_ENABLE
+        bool "Enable BK Open Framework asynchronous event bus"
+        default y
+        depends on BK_OF_PORT_ENABLE
+endmenu

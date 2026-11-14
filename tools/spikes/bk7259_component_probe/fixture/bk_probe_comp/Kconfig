@@ -1,0 +1,9 @@
+menu "BK Open Framework Probe"
+	config BK_OPEN_FRAMEWORK_PROBE
+		bool "Enable BK Open Framework AP/CP component probe"
+		default n
+		help
+			Spike probe option used to verify that an external component
+			can be compiled into AP and CP when enabled, and excluded
+			from the final ELF when disabled.
+endmenu

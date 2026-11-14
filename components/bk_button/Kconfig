@@ -1,0 +1,6 @@
+menu "BK Open Framework Button FSM"
+    config BK_OF_BUTTON_ENABLE
+        bool "Enable BK Open Framework button debounce and click FSM"
+        default y
+        depends on BK_OF_PORT_ENABLE
+endmenu

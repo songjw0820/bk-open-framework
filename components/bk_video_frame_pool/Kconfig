@@ -1,0 +1,6 @@
+menu "BK Open Framework Video Frame Pool"
+    config BK_OF_VIDEO_FRAME_POOL_ENABLE
+        bool "Enable BK Open Framework 64B-aligned PSRAM video frame pool"
+        default y
+        depends on BK_OF_PORT_ENABLE
+endmenu

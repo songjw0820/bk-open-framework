@@ -1,0 +1,5 @@
+menu "BK Open Framework Optional Proprietary Plugins"
+    config BK_PLUGIN_AGORA_ENABLE
+        bool "Enable optional Agora RTC/RTM proprietary plugin (requires external agora-iot-sdk)"
+        default n
+endmenu

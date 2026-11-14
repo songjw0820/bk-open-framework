@@ -1,0 +1,5 @@
+menu "BK Open Framework Board Abstraction"
+    config BK_OF_BOARD_ENABLE
+        bool "Enable BK Open Framework board capability and CP template contract"
+        default y
+endmenu

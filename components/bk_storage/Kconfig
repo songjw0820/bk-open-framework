@@ -1,0 +1,6 @@
+menu "BK Open Framework Secure KV Storage"
+    config BK_OF_STORAGE_ENABLE
+        bool "Enable BK Open Framework CRC32 KV storage with sensitive scrubbing"
+        default y
+        depends on BK_OF_PORT_ENABLE
+endmenu
