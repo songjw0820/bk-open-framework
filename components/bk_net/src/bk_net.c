@@ -26,7 +26,7 @@ static void post_net_evt(struct bk_net_mgr *net, bk_net_event_id_t evt_id)
 {
     if (net->event_loop != NULL) {
         int32_t st = (int32_t)net->state;
-        (void)bk_event_post(
+        (void)bk_of_event_post(
             net->event_loop, BK_EVENT_FAMILY_NET, (int32_t)evt_id, &st, sizeof(st), 10);
     }
 }

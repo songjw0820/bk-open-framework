@@ -439,8 +439,8 @@ static bk_err_t setup_bk7259_mbedtls(struct bk_ws_transport *ws)
 static void close_stream(struct bk_ws_transport *ws)
 {
     reset_frag_buffer(ws);
-    if (ws->cfg.io_ops != NULL && ws->cfg.io_ops->close != NULL) {
-        ws->cfg.io_ops->close(ws->cfg.io_ops->io_ctx);
+    if (ws->cfg.io_ops != NULL && ws->cfg.io_ops->close_fn != NULL) {
+        ws->cfg.io_ops->close_fn(ws->cfg.io_ops->io_ctx);
     }
 #if defined(BK_OF_BUILDING_TARGET_BK7259)
     close_bk7259_mbedtls(ws);
@@ -534,8 +534,8 @@ static bk_err_t stream_write_all(struct bk_ws_transport *ws, const uint8_t *buf,
     size_t sent = 0U;
     while (sent < len) {
         int n = -1;
-        if (ws->cfg.io_ops != NULL && ws->cfg.io_ops->send != NULL) {
-            n = ws->cfg.io_ops->send(buf + sent, len - sent, ws->cfg.io_ops->io_ctx);
+        if (ws->cfg.io_ops != NULL && ws->cfg.io_ops->send_fn != NULL) {
+            n = ws->cfg.io_ops->send_fn(buf + sent, len - sent, ws->cfg.io_ops->io_ctx);
         }
 #if defined(BK_OF_BUILDING_TARGET_BK7259)
         else if (ws->mbedtls_active) {
@@ -568,8 +568,8 @@ static int stream_read_some(struct bk_ws_transport *ws,
                             size_t len,
                             uint32_t timeout_ms)
 {
-    if (ws->cfg.io_ops != NULL && ws->cfg.io_ops->recv != NULL) {
-        return ws->cfg.io_ops->recv(buf, len, timeout_ms, ws->cfg.io_ops->io_ctx);
+    if (ws->cfg.io_ops != NULL && ws->cfg.io_ops->recv_fn != NULL) {
+        return ws->cfg.io_ops->recv_fn(buf, len, timeout_ms, ws->cfg.io_ops->io_ctx);
     }
     if (ws->sock_fd < 0) {
         return -1;
@@ -812,8 +812,8 @@ bk_err_t bk_ws_transport_connect(bk_ws_transport_handle_t ws)
     uint32_t timeout_ms = (ws->cfg.connect_timeout_ms > 0U) ? ws->cfg.connect_timeout_ms : 5000U;
 
     if (ws->cfg.io_ops != NULL) {
-        if (ws->cfg.io_ops->connect != NULL) {
-            bk_err_t cerr = ws->cfg.io_ops->connect(
+        if (ws->cfg.io_ops->connect_fn != NULL) {
+            bk_err_t cerr = ws->cfg.io_ops->connect_fn(
                 ws->host, ws->port, timeout_ms, ws->cfg.io_ops->io_ctx);
             if (cerr != BK_OK) {
                 ws->state = BK_WS_STATE_DISCONNECTED;

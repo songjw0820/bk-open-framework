@@ -186,7 +186,7 @@ void *bk_port_malloc(size_t size, uint32_t caps, const char *tag)
     uint8_t *raw = NULL;
 
     if (caps & BK_MEM_CAP_PSRAM_CACHEABLE) {
-        raw = (uint8_t *)psram_cache_malloc(total);
+        raw = (uint8_t *)psram_malloc(total);
     } else if (caps & BK_MEM_CAP_PSRAM) {
         raw = (uint8_t *)psram_malloc(total);
     } else if (caps & BK_MEM_CAP_SRAM) {

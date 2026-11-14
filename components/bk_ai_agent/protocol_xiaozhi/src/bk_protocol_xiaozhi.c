@@ -24,7 +24,7 @@ typedef int32_t (*fn_opus_encode_t)(OpusEncoder *st, const int16_t *pcm, int fra
 typedef void (*fn_opus_encoder_destroy_t)(OpusEncoder *st);
 
 typedef OpusDecoder *(*fn_opus_decoder_create_t)(int32_t Fs, int channels, int *error);
-typedef int32_t (*fn_opus_decode_t)(OpusDecoder *st, const unsigned char *data, int32_t len, int16_t *pcm, int frame_size, int decode_fec);
+typedef int (*fn_opus_decode_t)(OpusDecoder *st, const unsigned char *data, int32_t len, int16_t *pcm, int frame_size, int decode_fec);
 typedef void (*fn_opus_decoder_destroy_t)(OpusDecoder *st);
 
 struct bk_xiaozhi_session {

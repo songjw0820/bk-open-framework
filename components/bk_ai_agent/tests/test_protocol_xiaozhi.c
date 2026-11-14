@@ -6,7 +6,7 @@
 
 #include "bk_audio_session.h"
 #include "bk_board.h"
-#include "bk_net.h"
+#include "bk_of_net.h"
 #include "bk_port_mem.h"
 #include "bk_port_os.h"
 #include "bk_protocol_xiaozhi.h"
@@ -395,10 +395,10 @@ static void test_upgrade_response_header_rejections(void)
         mio.omit_upgrade_header = omit_upgrade[i];
         mio.omit_connection_header = omit_connection[i];
         bk_ws_io_ops_t io_ops = {
-            .connect = mock_io_connect,
-            .send = mock_io_send,
-            .recv = mock_io_recv,
-            .close = NULL,
+            .connect_fn = mock_io_connect,
+            .send_fn = mock_io_send,
+            .recv_fn = mock_io_recv,
+            .close_fn = NULL,
             .io_ctx = &mio,
         };
         bk_ws_transport_config_t cfg = {
@@ -452,10 +452,10 @@ static void test_rfc6455_illegal_frame_rejections(void)
         mock_illegal_io_t mio;
         memset(&mio, 0, sizeof(mio));
         bk_ws_io_ops_t io_ops = {
-            .connect = mock_io_connect,
-            .send = mock_io_send,
-            .recv = mock_io_recv,
-            .close = NULL,
+            .connect_fn = mock_io_connect,
+            .send_fn = mock_io_send,
+            .recv_fn = mock_io_recv,
+            .close_fn = NULL,
             .io_ctx = &mio,
         };
         int reason = 0;

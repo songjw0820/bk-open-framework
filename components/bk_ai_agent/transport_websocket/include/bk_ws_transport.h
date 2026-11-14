@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "bk_err.h"
-#include "bk_net.h"
+#include "bk_of_net.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,10 +49,10 @@ typedef void (*bk_ws_disconnect_cb_t)(bk_ws_transport_handle_t ws,
  *   for ws:// (when allow_plain_ws == true) and requires io_ops for wss://.
  */
 typedef struct {
-    bk_err_t (*connect)(const char *host, uint16_t port, uint32_t timeout_ms, void *io_ctx);
-    int (*send)(const uint8_t *buf, size_t len, void *io_ctx);
-    int (*recv)(uint8_t *buf, size_t len, uint32_t timeout_ms, void *io_ctx);
-    void (*close)(void *io_ctx);
+    bk_err_t (*connect_fn)(const char *host, uint16_t port, uint32_t timeout_ms, void *io_ctx);
+    int (*send_fn)(const uint8_t *buf, size_t len, void *io_ctx);
+    int (*recv_fn)(uint8_t *buf, size_t len, uint32_t timeout_ms, void *io_ctx);
+    void (*close_fn)(void *io_ctx);
     void *io_ctx;
 } bk_ws_io_ops_t;
 

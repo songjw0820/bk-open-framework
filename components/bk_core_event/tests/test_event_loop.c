@@ -72,7 +72,7 @@ static void test_event_ordering_deepcopy_and_deinit(void)
 
     for (int i = 1; i <= 6; ++i) {
         int stack_payload = i * 100;
-        assert(bk_event_post(loop, 10, i, &stack_payload, sizeof(stack_payload), 50) == BK_OK);
+        assert(bk_of_event_post(loop, 10, i, &stack_payload, sizeof(stack_payload), 50) == BK_OK);
         /* Immediately overwrite stack_payload to prove deep-copy semantics */
         stack_payload = -9999;
     }
@@ -80,7 +80,7 @@ static void test_event_ordering_deepcopy_and_deinit(void)
     /* Oversized payload must be rejected */
     uint8_t huge[BK_EVENT_MAX_PAYLOAD_SIZE + 1];
     memset(huge, 0xAA, sizeof(huge));
-    assert(bk_event_post(loop, 10, 99, huge, sizeof(huge), 0) == BK_ERR_PAYLOAD_TOO_LARGE);
+    assert(bk_of_event_post(loop, 10, 99, huge, sizeof(huge), 0) == BK_ERR_PAYLOAD_TOO_LARGE);
 
     assert(bk_event_loop_flush(loop, 1000) == BK_OK);
     assert(col.count == 6U);
