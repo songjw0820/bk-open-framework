@@ -4,7 +4,7 @@
  * Wraps verified Armino SDK APIs:
  * - rtos_init_mutex / rtos_init_recursive_mutex / rtos_create_thread /
  *   rtos_get_time / rtos_delay_milliseconds (ap/include/os/os.h)
- * - os_sram_malloc / psram_malloc / psram_cache_malloc (ap/include/os/mem.h)
+ * - os_sram_malloc / psram_malloc (ap/include/os/mem.h)
  * - bk_dcache_clean_for_producer / bk_dcache_invalidate_for_consumer /
  *   bk_dcache_addr_is_cacheable (ap/middleware/arch/cortex-m/cache.c)
  */
@@ -185,9 +185,7 @@ void *bk_port_malloc(size_t size, uint32_t caps, const char *tag)
     size_t total = size + align + sizeof(bk_alloc_hdr_t);
     uint8_t *raw = NULL;
 
-    if (caps & BK_MEM_CAP_PSRAM_CACHEABLE) {
-        raw = (uint8_t *)psram_malloc(total);
-    } else if (caps & BK_MEM_CAP_PSRAM) {
+    if (caps & (BK_MEM_CAP_PSRAM_CACHEABLE | BK_MEM_CAP_PSRAM)) {
         raw = (uint8_t *)psram_malloc(total);
     } else if (caps & BK_MEM_CAP_SRAM) {
         raw = (uint8_t *)os_sram_malloc(total);

@@ -9,7 +9,7 @@
 #include "bk_board.h"
 #include "bk_core_event.h"
 #include "bk_motion.h"
-#include "bk_net.h"
+#include "bk_of_net.h"
 #include "bk_plugin_agora.h"
 #include "bk_protocol_xiaozhi.h"
 #include "bk_robot_face.h"

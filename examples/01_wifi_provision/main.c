@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "bk_board.h"
 #include "bk_core_event.h"
-#include "bk_net.h"
+#include "bk_of_net.h"
 #include "bk_storage.h"
 
 #include <assert.h>

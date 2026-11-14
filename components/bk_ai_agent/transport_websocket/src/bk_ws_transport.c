@@ -780,6 +780,44 @@ static bool header_value_equals_ci(const char *value, const char *expected)
     return *value == '\0' && *expected == '\0';
 }
 
+static bool header_value_contains_token_ci(const char *value, const char *expected)
+{
+    if (value == NULL || expected == NULL || *expected == '\0') {
+        return false;
+    }
+    size_t expected_len = strlen(expected);
+    while (*value != '\0') {
+        while (*value == ',' || isspace((unsigned char)*value)) {
+            ++value;
+        }
+        const char *token = value;
+        while (*value != '\0' && *value != ',') {
+            ++value;
+        }
+        const char *end = value;
+        while (end > token && isspace((unsigned char)end[-1])) {
+            --end;
+        }
+        size_t token_len = (size_t)(end - token);
+        if (token_len == expected_len) {
+            bool matches = true;
+            for (size_t i = 0U; i < expected_len; ++i) {
+                if (tolower((unsigned char)token[i]) != tolower((unsigned char)expected[i])) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                return true;
+            }
+        }
+        if (*value == ',') {
+            ++value;
+        }
+    }
+    return false;
+}
+
 bk_err_t bk_ws_transport_connect(bk_ws_transport_handle_t ws)
 {
     if (ws == NULL) {
@@ -905,12 +943,12 @@ bk_err_t bk_ws_transport_connect(bk_ws_transport_handle_t ws)
     }
 
     char got_upgrade[32] = {0};
-    char got_connection[32] = {0};
+    char got_connection[128] = {0};
     char got_accept[64] = {0};
     if (!find_header_value_ci(resp, "Upgrade", got_upgrade, sizeof(got_upgrade)) ||
         !header_value_equals_ci(got_upgrade, "websocket") ||
         !find_header_value_ci(resp, "Connection", got_connection, sizeof(got_connection)) ||
-        !header_value_equals_ci(got_connection, "Upgrade") ||
+        !header_value_contains_token_ci(got_connection, "Upgrade") ||
         !find_header_value_ci(resp, "Sec-WebSocket-Accept", got_accept, sizeof(got_accept)) ||
         strcmp(got_accept, expected_accept) != 0) {
         close_stream(ws);
