@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+board: bk7259_robot
+chip: BK7259
+sdk_ref: release/v4.0.1.11
+sdk_peeled_commit_sha: 584b947920c414230f9909375f008e7d6a2c6c6b
+solution_peeled_commit_sha: a1e865e156e8dc31dfb360219c33a6a6d908ea98
+
+cp_templates:
+  minimal:
+    source: sdk
+    repository: https://github.com/bekencorp/bk_avdk_smp.git
+    path: projects/app/cp
+    gpio_cfg_header: projects/app/cp/config/bk7259/usr_gpio_cfg.h
+  robot:
+    source: solution
+    repository: https://github.com/bekencorp/bk_solution_ai.git
+    path: projects/beken_robot/cp
+    gpio_cfg_header: projects/beken_robot/cp/config/bk7259/usr_gpio_cfg.h
+
+memory_and_cache:
+  l2_cache_line_bytes: 32
+  frame_queue_align_bytes: 64
+  psram_total_mb: 16
+  flash_total_mb: 8
+  default_ota_slot_kb: 264
+
+capabilities:
+  wifi_sta:
+    verify_state: static_verified
+    notes: "Armino bk_wifi + lwip_intf_v2_1 entry points verified in release/v4.0.1.11"
+  ble_prov:
+    verify_state: static_verified
+    notes: "Armino bk_bluetooth + bk_smart_config entry points verified in release/v4.0.1.11"
+  audio_codec:
+    verify_state: static_verified
+    notes: "Armino bk_player_service + audio_pipeline 16kHz/16-bit/Mono PCM verified in release/v4.0.1.11"
+  camera_dvp_csi:
+    verify_state: static_verified
+    notes: "Armino bk_isp_camera + bk_camera_isp_ctlr headers verified in release/v4.0.1.11"
+  display_lvgl:
+    verify_state: static_verified
+    notes: "Armino bk_display + lvgl entry points verified in release/v4.0.1.11"
+  button_gpio:
+    verify_state: static_verified
+    notes: "GPIO key input entry points verified in bk_key_app / usr_gpio_cfg.h"
+  led_gpio:
+    verify_state: static_verified
+    notes: "GPIO LED control entry points verified in bk_led_blink / usr_gpio_cfg.h"
+  servo_pwm:
+    verify_state: static_verified
+    notes: "Robot servo/motor control entry points verified in bk_servo / bk_motor"
+  battery_adc:
+    verify_state: static_verified
+    notes: "Battery monitor entry points verified in bk_batt_monitor"
+  psram_peripheral_dma_direct:
+    verify_state: unverified
+    notes: "Peripheral-specific CSI/DVP/JPEG/DMA2D direct PSRAM access requires Tier 2/4 hardware measurement"
+  secure_ota_8mb_default:
+    verify_state: unverified
+    notes: "Default 8MB auto_partitions.csv has only 264KB ota slot and lacks ota_control/boot_param"
