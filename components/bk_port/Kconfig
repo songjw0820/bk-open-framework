@@ -1,0 +1,5 @@
+menu "BK Open Framework Porting Layer"
+    config BK_OF_PORT_ENABLE
+        bool "Enable BK Open Framework OS/Memory/Cache porting layer"
+        default y
+endmenu

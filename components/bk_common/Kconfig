@@ -1,0 +1,5 @@
+menu "BK Open Framework Common"
+    config BK_OF_COMMON_ENABLE
+        bool "Enable BK Open Framework common error and capability contracts"
+        default y
+endmenu

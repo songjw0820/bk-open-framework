@@ -1,0 +1,6 @@
+if(COMMAND armino_component_register)
+    armino_component_register(INCLUDE_DIRS "include")
+else()
+    add_library(bk_common INTERFACE)
+    target_include_directories(bk_common INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+endif()
